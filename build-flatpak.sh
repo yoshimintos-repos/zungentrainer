@@ -3,7 +3,7 @@
 #
 # Voraussetzungen:
 #   flatpak install flathub org.gnome.Platform//49
-#   flatpak install flathub org.gnome.Sdk//48
+#   flatpak install flathub org.gnome.Sdk//49
 #   flatpak install flathub org.flatpak.Builder
 #
 # Verwendung:
