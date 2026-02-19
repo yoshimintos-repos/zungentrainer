@@ -1,0 +1,16 @@
+# Flatpak Build
+.flatpak-build/
+.flatpak-builder/
+.flatpak-repo/
+flatpak/pip-cache/
+ZungenTrainer.flatpak
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>de.yoshimintos.ZungenTrainer</id>
+  <name>ZungenTrainer</name>
+  <summary>Zungen-Haltungstrainer mit Webcam-Erkennung</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <developer id="de.yoshimintos">
+    <name>yoshimintos</name>
+  </developer>
+
+  <description>
+    <p>
+      ZungenTrainer hilft bei der Korrektur von Zungenfehlstellungen durch
+      automatische Erkennung per Webcam. Wenn die Zunge aus dem Mund hängt,
+      ertönt ein Piepton und laufende Musik wird pausiert.
+    </p>
+    <p>
+      Gamification mit Leveln, Abzeichen und sammelbaren Kreaturen
+      ("Zungenfreunde") motiviert zum regelmäßigen Training.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">de.yoshimintos.ZungenTrainer.desktop</launchable>
+
+  <url type="homepage">https://github.com/yoshimintos/zungentrainer</url>
+
+  <content_rating type="oars-1.1"/>
+
+  <branding>
+    <color type="primary" scheme_preference="light">#62a0ea</color>
+    <color type="primary" scheme_preference="dark">#1a5fb4</color>
+  </branding>
+
+  <requires>
+    <display_length compare="ge">360</display_length>
+  </requires>
+
+  <categories>
+    <category>Education</category>
+    <category>Health</category>
+  </categories>
+
+  <releases>
+    <release version="1.0.0" date="2026-02-19">
+      <description>
+        <p>Erste Veröffentlichung mit allen Kernfunktionen:</p>
+        <ul>
+          <li>Webcam-basierte Zungenerkennung mit MediaPipe</li>
+          <li>Piepton und Medienpausierung bei Erkennung</li>
+          <li>10-Level Schwierigkeitssystem</li>
+          <li>12 sammelbare Zungenfreunde</li>
+          <li>15 freischaltbare Abzeichen</li>
+          <li>Trainingsstatistiken und Streak-System</li>
+        </ul>
+      </description>
+    </release>
+  </releases>
+</component>

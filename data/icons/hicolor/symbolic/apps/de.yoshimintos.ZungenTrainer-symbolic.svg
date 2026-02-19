@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
+  <!-- Face circle -->
+  <circle cx="8" cy="7" r="6" fill="none" stroke="currentColor" stroke-width="1.2"/>
+  <!-- Eyes -->
+  <circle cx="6" cy="5.5" r="0.8" fill="currentColor"/>
+  <circle cx="10" cy="5.5" r="0.8" fill="currentColor"/>
+  <!-- Mouth -->
+  <ellipse cx="8" cy="9" rx="2.5" ry="1.5" fill="currentColor"/>
+  <!-- Tongue -->
+  <ellipse cx="8" cy="11" rx="1.8" ry="2" fill="currentColor"/>
+</svg>

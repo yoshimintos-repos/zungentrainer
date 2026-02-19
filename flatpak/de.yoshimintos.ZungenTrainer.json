@@ -1,0 +1,61 @@
+{
+    "app-id": "de.yoshimintos.ZungenTrainer",
+    "runtime": "org.gnome.Platform",
+    "runtime-version": "49",
+    "sdk": "org.gnome.Sdk",
+    "command": "zungentrainer",
+    "finish-args": [
+        "--share=ipc",
+        "--socket=fallback-x11",
+        "--socket=wayland",
+        "--socket=pulseaudio",
+        "--device=all",
+        "--talk-name=org.mpris.MediaPlayer2.*",
+        "--talk-name=org.freedesktop.DBus"
+    ],
+    "build-options": {
+        "no-debuginfo": true
+    },
+    "cleanup": [
+        "/include",
+        "/lib/pkgconfig",
+        "*.la",
+        "*.a"
+    ],
+    "modules": [
+        {
+            "name": "python-deps",
+            "buildsystem": "simple",
+            "build-commands": [
+                "pip3 install --no-index --find-links=. --prefix=/app --no-build-isolation --ignore-installed *.whl"
+            ],
+            "sources": [
+                {
+                    "type": "dir",
+                    "path": "pip-cache"
+                }
+            ]
+        },
+        {
+            "name": "zungentrainer",
+            "buildsystem": "simple",
+            "build-commands": [
+                "install -d /app/share/zungentrainer",
+                "cp -r src/* /app/share/zungentrainer/",
+                "install -d /app/share/zungentrainer/data",
+                "cp data/face_landmarker.task /app/share/zungentrainer/data/",
+                "install -Dm755 bin/zungentrainer /app/bin/zungentrainer",
+                "install -Dm644 data/de.yoshimintos.ZungenTrainer.desktop /app/share/applications/de.yoshimintos.ZungenTrainer.desktop",
+                "install -Dm644 data/de.yoshimintos.ZungenTrainer.metainfo.xml /app/share/metainfo/de.yoshimintos.ZungenTrainer.metainfo.xml",
+                "install -Dm644 data/icons/hicolor/scalable/apps/de.yoshimintos.ZungenTrainer.svg /app/share/icons/hicolor/scalable/apps/de.yoshimintos.ZungenTrainer.svg",
+                "install -Dm644 data/icons/hicolor/symbolic/apps/de.yoshimintos.ZungenTrainer-symbolic.svg /app/share/icons/hicolor/symbolic/apps/de.yoshimintos.ZungenTrainer-symbolic.svg"
+            ],
+            "sources": [
+                {
+                    "type": "dir",
+                    "path": ".."
+                }
+            ]
+        }
+    ]
+}
