@@ -57,11 +57,12 @@ class UserProfile:
         "camera_index": 0,
         "volume": 0.5,
         "beep_frequency": 800,
-        "sensitivity": 0.15,
     })
 
     def to_dict(self) -> dict:
+        from models.persistence import CURRENT_SCHEMA
         return {
+            "schema_version": CURRENT_SCHEMA,
             "name": self.name,
             "level": self.level,
             "xp": self.xp,

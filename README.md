@@ -22,12 +22,12 @@ Gedacht als Unterstützung bei myofunktioneller Therapie (Logopädie / Kieferort
 
 ### 10-Stufen Schwierigkeitssystem
 
-Jedes Level steuert automatisch diese Parameter:
+Auslöse-Dauer (Zunge draußen bis Alarm) und Abklingzeit sind fest auf **5 Sekunden** gesetzt. Die Schwierigkeit skaliert über Erkennungspause, Empfindlichkeit und erlaubte Vorfälle:
 
 | Parameter | Level 1 (leicht) | Level 10 (schwer) |
 |-----------|------------------:|-------------------:|
-| Auslöse-Dauer (Zunge draußen bis Alarm) | 20 s | 2 s |
-| Abklingzeit zwischen Erkennungen | 200 s | 20 s |
+| Erkennungspause nach Vorfall | 0 s | 20 s |
+| Reaktionsverzögerung | 3.0 s | 0 s |
 | Empfindlichkeits-Multiplikator | 3.5x | 1.2x |
 | Max. erlaubte Vorfälle | unbegrenzt | 3 |
 | Mindest-Sitzungsdauer | 10 min | 30 min |
@@ -95,9 +95,11 @@ data/
 
 **Erkennungs-Pipeline:** `DetectorService` extrahiert Signale aus MediaPipe Face Landmarks und Blendshapes, berechnet einen gewichteten Score, kalibriert eine Baseline über die ersten 60 Frames (Median), und vergleicht den geglätteten Score gegen `baseline + baseline * sensitivity_multiplier`.
 
-**Sitzungs-Zustandsmaschine:** `SessionService` durchläuft IDLE → RUNNING → DETECTED → COOLDOWN → RUNNING. Löst Callbacks für Alarm-Start (`on_alarm`) und Alarm-Ende (`on_alarm_end`) aus. TrainingPage verdrahtet diese mit SoundService und MprisService.
+**Sitzungs-Zustandsmaschine:** `SessionService` durchläuft IDLE → RUNNING → DETECTED → COOLDOWN → PAUSED → RUNNING. Der PAUSED-State setzt die Erkennung für `detection_pause` Sekunden aus (Level-abhängig, 0–20 s). Löst Callbacks für Alarm-Start (`on_alarm`) und Alarm-Ende (`on_alarm_end`) aus. TrainingPage verdrahtet diese mit SoundService und MprisService.
 
 **Datenpersistenz:** JSON-Profil unter `$XDG_DATA_HOME/zungentrainer/profile.json`. Atomares Schreiben über temporäre Datei + `os.replace()`. Beim lokalen Entwickeln setzt `run.sh` die Umgebungsvariable `ZUNGENTRAINER_DATA_DIR` auf das lokale `data/`-Verzeichnis.
+
+**Schema-Versionierung:** Jedes gespeicherte Profil enthält ein `schema_version`-Feld. Beim Laden prüft `persistence.py`, ob Migrationen nötig sind, erstellt ein Backup (`profile.v{alt}.json.bak`) und wendet die Migrationskette sequenziell an. So bleiben Profildaten bei App-Updates erhalten, auch wenn sich das Datenformat ändert.
 
 ## Installation
 
@@ -187,6 +189,25 @@ Das Profil wird bei lokaler Ausführung unter `./data/profile.json` gespeichert 
 Die App benötigt Zugriff auf eine Webcam. Falls die Standardkamera (Index 0) nicht funktioniert, kann der Kamera-Index in den Einstellungen geändert werden. Der CameraService probiert bei Fehlschlag automatisch die Indizes 0–4 durch.
 
 Im Flatpak ist Kamera-Zugriff über `--device=all` in den Finish-Args freigegeben.
+
+## Update
+
+Das Benutzerprofil (`profile.json`) liegt in `$XDG_DATA_HOME/zungentrainer/` und überlebt App-Updates. Wenn sich das Datenformat zwischen Versionen ändert, migriert die App das Profil beim nächsten Start automatisch:
+
+1. Backup der alten Datei als `profile.v{alte_version}.json.bak`
+2. Sequenzielle Anwendung aller nötigen Migrationsschritte
+3. Speicherung des aktualisierten Profils
+
+### Flatpak aktualisieren
+
+```bash
+# Neu bauen und installieren (überschreibt die vorherige Version)
+cd zungentrainer
+git pull
+./build-flatpak.sh
+```
+
+Oder bei Nutzung eines `.flatpak`-Bundles: Einfach das neue Bundle installieren — Flatpak aktualisiert die App, das Profil bleibt erhalten.
 
 ## Lizenz
 
