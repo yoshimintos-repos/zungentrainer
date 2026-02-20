@@ -1,36 +1,97 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
-  <!-- Background circle -->
-  <circle cx="64" cy="64" r="60" fill="#3584e4"/>
-  <circle cx="64" cy="64" r="56" fill="#62a0ea"/>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <!-- Base edge gradient (left-right highlight for depth) -->
+    <linearGradient id="baseEdge" gradientUnits="userSpaceOnUse" x1="12" y1="64" x2="116" y2="64">
+      <stop offset="0" stop-color="#1a5fb4"/>
+      <stop offset="0.04" stop-color="#2272c9"/>
+      <stop offset="0.08" stop-color="#1c71d8"/>
+      <stop offset="0.92" stop-color="#1c71d8"/>
+      <stop offset="0.96" stop-color="#2272c9"/>
+      <stop offset="1" stop-color="#1a5fb4"/>
+    </linearGradient>
+    <!-- Main base top-to-bottom gradient -->
+    <linearGradient id="baseFill" gradientUnits="userSpaceOnUse" x1="64" y1="10" x2="64" y2="116">
+      <stop offset="0" stop-color="#62a0ea"/>
+      <stop offset="1" stop-color="#3584e4"/>
+    </linearGradient>
+    <!-- Top highlight -->
+    <linearGradient id="topHighlight" gradientUnits="userSpaceOnUse" x1="64" y1="10" x2="64" y2="28">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <!-- Tongue gradient -->
+    <linearGradient id="tongueGrad" gradientUnits="userSpaceOnUse" x1="64" y1="66" x2="64" y2="100">
+      <stop offset="0" stop-color="#ed333b"/>
+      <stop offset="0.6" stop-color="#e01b24"/>
+      <stop offset="1" stop-color="#c01c28"/>
+    </linearGradient>
+    <!-- Tongue highlight -->
+    <radialGradient id="tongueHighlight" cx="60" cy="78" r="16" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f66151" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#f66151" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Lip skin gradient -->
+    <radialGradient id="skinGrad" cx="64" cy="62" r="34" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f5d0b0"/>
+      <stop offset="0.7" stop-color="#e8a882"/>
+      <stop offset="1" stop-color="#d89070"/>
+    </radialGradient>
+    <!-- Lower lip gradient -->
+    <linearGradient id="lowerLipGrad" gradientUnits="userSpaceOnUse" x1="64" y1="70" x2="64" y2="96">
+      <stop offset="0" stop-color="#e8a882"/>
+      <stop offset="1" stop-color="#d08060"/>
+    </linearGradient>
+  </defs>
 
-  <!-- Face outline -->
-  <circle cx="64" cy="58" r="32" fill="#f9f7eb" stroke="#c0bfbc" stroke-width="1.5"/>
+  <!-- === BASE SHAPE (Squircle) === -->
+  <!-- Bottom edge shadow (4px offset for HIG depth) -->
+  <rect x="12" y="14" width="104" height="106" rx="16" ry="16" fill="url(#baseEdge)"/>
+  <!-- Main base -->
+  <rect x="12" y="10" width="104" height="106" rx="16" ry="16" fill="url(#baseFill)"/>
+  <!-- Subtle top highlight for lighting -->
+  <path d="M 28,10 H 100 Q 116,10 116,26 V 28 Q 116,16 100,14 H 28 Q 12,14 12,28 V 26 Q 12,10 28,10 Z" fill="#ffffff" opacity="0.1"/>
 
-  <!-- Eyes -->
-  <ellipse cx="52" cy="50" rx="5" ry="6" fill="#241f31"/>
-  <ellipse cx="76" cy="50" rx="5" ry="6" fill="#241f31"/>
-  <!-- Eye highlights -->
-  <circle cx="54" cy="48" r="1.5" fill="white"/>
-  <circle cx="78" cy="48" r="1.5" fill="white"/>
+  <!-- === MOUTH/LIPS REGION === -->
+  <!-- Skin-colored base shape for the lip area -->
+  <ellipse cx="64" cy="66" rx="32" ry="30" fill="url(#skinGrad)"/>
 
-  <!-- Mouth open -->
-  <ellipse cx="64" cy="68" rx="14" ry="10" fill="#241f31"/>
+  <!-- Lower lip fullness -->
+  <ellipse cx="64" cy="78" rx="26" ry="16" fill="url(#lowerLipGrad)"/>
 
-  <!-- Tongue sticking out -->
-  <ellipse cx="64" cy="78" rx="10" ry="12" fill="#e01b24"/>
-  <ellipse cx="64" cy="76" rx="8" ry="8" fill="#f66151"/>
-  <!-- Tongue line -->
-  <line x1="64" y1="70" x2="64" y2="86" stroke="#c01c28" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- Upper lip shape (cupid's bow) -->
+  <path d="M 34,64 Q 40,56 50,60 Q 56,50 64,52 Q 72,50 78,60 Q 88,56 94,64 Q 86,68 78,64 Q 72,56 64,56 Q 56,56 50,64 Q 42,68 34,64 Z" fill="#d08060"/>
+  <!-- Lip line (adds definition) -->
+  <path d="M 36,64 Q 42,58 50,61 Q 56,52 64,54 Q 72,52 78,61 Q 86,58 92,64" fill="none" stroke="#c07050" stroke-width="1.2" opacity="0.5"/>
 
-  <!-- Teeth (upper) -->
-  <rect x="54" y="60" width="7" height="5" rx="1.5" fill="white"/>
-  <rect x="63" y="60" width="7" height="5" rx="1.5" fill="white"/>
+  <!-- Mouth opening -->
+  <ellipse cx="64" cy="68" rx="22" ry="14" fill="#241f31"/>
 
-  <!-- Cheeks -->
-  <circle cx="40" cy="62" r="5" fill="#f66151" opacity="0.3"/>
-  <circle cx="88" cy="62" r="5" fill="#f66151" opacity="0.3"/>
+  <!-- Teeth row (smaller, cleaner) -->
+  <path d="M 46,62 Q 46,68 64,68 Q 82,68 82,62 Q 78,58 64,58 Q 50,58 46,62 Z" fill="#f6f5f4"/>
+  <!-- Teeth dividers -->
+  <line x1="54" y1="59.5" x2="54" y2="67" stroke="#c0bfbc" stroke-width="0.7"/>
+  <line x1="64" y1="58.5" x2="64" y2="67" stroke="#c0bfbc" stroke-width="0.7"/>
+  <line x1="74" y1="59.5" x2="74" y2="67" stroke="#c0bfbc" stroke-width="0.7"/>
+  <!-- Teeth subtle highlight -->
+  <path d="M 50,60 Q 50,64 64,64 Q 78,64 78,60 Q 74,57 64,57 Q 54,57 50,60 Z" fill="#ffffff" opacity="0.4"/>
 
-  <!-- Prohibition circle (training symbol) -->
-  <circle cx="64" cy="64" r="56" fill="none" stroke="#e5a50a" stroke-width="4" stroke-dasharray="8 4" opacity="0.6"/>
+  <!-- === TONGUE === -->
+  <!-- Main tongue body -->
+  <path d="M 46,70 Q 44,82 48,92 Q 54,102 64,102 Q 74,102 80,92 Q 84,82 82,70 Z" fill="url(#tongueGrad)"/>
+  <!-- Tongue volume highlight -->
+  <path d="M 46,70 Q 44,82 48,92 Q 54,102 64,102 Q 74,102 80,92 Q 84,82 82,70 Z" fill="url(#tongueHighlight)"/>
+  <!-- Tongue center line -->
+  <path d="M 64,72 Q 63.5,84 64,98" fill="none" stroke="#a51d2d" stroke-width="1.5" stroke-linecap="round" opacity="0.35"/>
+  <!-- Tongue bottom edge highlight -->
+  <path d="M 54,98 Q 58,104 64,104 Q 70,104 74,98" fill="none" stroke="#f66151" stroke-width="1" opacity="0.3"/>
+
+  <!-- === TRAINING BADGE (bottom-right) === -->
+  <!-- Shadow -->
+  <circle cx="96" cy="100" r="12" fill="#1a5fb4" opacity="0.3"/>
+  <!-- Badge background -->
+  <circle cx="96" cy="98" r="12" fill="#26a269"/>
+  <circle cx="96" cy="98" r="10.5" fill="#33d17a"/>
+  <!-- Checkmark -->
+  <path d="M 89,98 L 93.5,103 L 103.5,92" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
