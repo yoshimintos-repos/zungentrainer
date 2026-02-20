@@ -202,7 +202,7 @@ Das Benutzerprofil (`profile.json`) liegt in `$XDG_DATA_HOME/zungentrainer/` und
 
 ```bash
 # Neu bauen und installieren (überschreibt die vorherige Version)
-cd zungentrainer
+cd PFAD_WOHIN_GEPULLT_WURDE
 git pull
 ./build-flatpak.sh
 ```
