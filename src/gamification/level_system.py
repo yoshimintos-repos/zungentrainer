@@ -8,23 +8,28 @@ import math
 XP_TABLE = [0, 0, 100, 250, 500, 800, 1200, 1700, 2400, 3200, 4200]
 
 # Schwierigkeitsparameter pro Level [Level 1 ... Level 10]
-# (trigger_duration_s, cooldown_s, reaction_delay_s, sensitivity_multiplier, max_incidents, required_session_time_s)
+# (detection_pause_s, reaction_delay_s, sensitivity_multiplier, max_incidents, required_session_time_s)
+#
+# detection_pause_s: Nach einem Vorfall bleibt die Erkennung so lange aus.
+# Level 1: 0s (ständige Überwachung), Level 10: 20s (Selbstdisziplin nötig).
 #
 # sensitivity_multiplier: Wie viel der Score über der Baseline liegen muss.
 # Höher = weniger empfindlich = einfacher (Level 1).
 # Niedriger = empfindlicher = schwerer (Level 10).
+#
+# trigger_duration und cooldown_time sind fest auf 5s gesetzt (siehe get_difficulty).
 DIFFICULTY = [
     None,  # Index 0 nicht genutzt
-    (20.0, 200.0, 3.0, 3.5, 0,  600.0),   # Level 1: sehr nachsichtig
-    (18.0, 180.0, 2.7, 3.2, 0,  660.0),   # Level 2
-    (16.0, 160.0, 2.4, 2.9, 0,  720.0),   # Level 3
-    (14.0, 140.0, 2.0, 2.6, 10, 780.0),   # Level 4
-    (12.0, 120.0, 1.7, 2.3, 8,  900.0),   # Level 5
-    (10.0, 100.0, 1.3, 2.0, 7,  1020.0),  # Level 6
-    (8.0,  90.0, 1.0, 1.8, 6,  1140.0),  # Level 7
-    (6.0,  60.0,  0.7, 1.6, 5,  1320.0),  # Level 8
-    (4.0,  40.0,  0.3, 1.4, 4,  1500.0),  # Level 9
-    (2.0,  20.0,  0.0, 1.2, 3,  1800.0),  # Level 10: sehr streng
+    (0.0,  3.0, 3.5, 0,  600.0),   # Level 1: ständige Überwachung
+    (2.0,  2.7, 3.2, 0,  660.0),   # Level 2
+    (4.0,  2.4, 2.9, 0,  720.0),   # Level 3
+    (7.0,  2.0, 2.6, 10, 780.0),   # Level 4
+    (9.0,  1.7, 2.3, 8,  900.0),   # Level 5
+    (11.0, 1.3, 2.0, 7,  1020.0),  # Level 6
+    (13.0, 1.0, 1.8, 6,  1140.0),  # Level 7
+    (16.0, 0.7, 1.6, 5,  1320.0),  # Level 8
+    (18.0, 0.3, 1.4, 4,  1500.0),  # Level 9
+    (20.0, 0.0, 1.2, 3,  1800.0),  # Level 10: Selbstdisziplin nötig
 ]
 
 MAX_LEVEL = 10
@@ -87,12 +92,13 @@ class LevelSystem:
         level = max(1, min(MAX_LEVEL, level))
         t = DIFFICULTY[level]
         return {
-            "trigger_duration": t[0],
-            "cooldown_time": t[1],
-            "reaction_delay": t[2],
-            "sensitivity": t[3],
-            "max_incidents": t[4],
-            "required_session_time": t[5],
+            "trigger_duration": 5.0,
+            "cooldown_time": 5.0,
+            "detection_pause": t[0],
+            "reaction_delay": t[1],
+            "sensitivity": t[2],
+            "max_incidents": t[3],
+            "required_session_time": t[4],
         }
 
     def check_level_up(self, profile) -> list[int]:

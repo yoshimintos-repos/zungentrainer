@@ -56,6 +56,7 @@ class TrainingPage(Gtk.Box):
         diff = self._window.level_system.get_difficulty(profile.level)
         self._session.trigger_duration = diff["trigger_duration"]
         self._session.cooldown_time = diff["cooldown_time"]
+        self._session.detection_pause = diff["detection_pause"]
         self._session.reaction_delay = diff["reaction_delay"]
         self._session.max_incidents = diff["max_incidents"]
         self._session.required_session_time = diff["required_session_time"]
@@ -193,6 +194,11 @@ class TrainingPage(Gtk.Box):
                 self._status_label.set_label(
                     f"Abklingzeit... noch {int(remaining)}s"
                 )
+            elif self._session.state == SessionState.PAUSED:
+                remaining = self._session.remaining_pause
+                self._status_label.set_label(
+                    f"Erkennung pausiert... noch {int(remaining)}s"
+                )
             # DETECTED: Banner zeigt "Zunge rein!", Label nicht überschreiben
         else:
             self._score_label.set_label("")
@@ -200,9 +206,14 @@ class TrainingPage(Gtk.Box):
             # DETECTED→COOLDOWN und COOLDOWN→RUNNING Übergänge stattfinden
             self._session.update(False)
             # "Kein Gesicht" nur im RUNNING-State anzeigen,
-            # damit wichtige Meldungen (Alarm, Cooldown) nicht überschrieben werden
+            # damit wichtige Meldungen (Alarm, Cooldown, Pause) nicht überschrieben werden
             if self._session.state == SessionState.RUNNING:
                 self._status_label.set_label("Kein Gesicht erkannt")
+            elif self._session.state == SessionState.PAUSED:
+                remaining = self._session.remaining_pause
+                self._status_label.set_label(
+                    f"Erkennung pausiert... noch {int(remaining)}s"
+                )
 
         # Timer aktualisieren
         duration = self._session.session_duration
@@ -245,6 +256,9 @@ class TrainingPage(Gtk.Box):
         elif new_state == SessionState.COOLDOWN:
             self._status_banner.set_revealed(False)
             self._status_label.set_label("Abklingzeit...")
+        elif new_state == SessionState.PAUSED:
+            self._status_banner.set_revealed(False)
+            self._status_label.set_label("Erkennung pausiert...")
         elif new_state == SessionState.RUNNING:
             self._status_banner.set_revealed(False)
             self._status_label.set_label("Training läuft")
