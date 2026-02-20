@@ -42,6 +42,7 @@ class TrainingPage(Gtk.Box):
         self._paintable = CameraPaintable()
 
         # Session-Callbacks
+        self._session.on_warning = self._on_warning
         self._session.on_alarm = self._on_alarm
         self._session.on_alarm_end = self._on_alarm_end
         self._session.on_state_change = self._on_state_change
@@ -54,10 +55,10 @@ class TrainingPage(Gtk.Box):
     def _apply_difficulty(self):
         profile = self._window.profile
         diff = self._window.level_system.get_difficulty(profile.level)
-        self._session.trigger_duration = diff["trigger_duration"]
+        self._session.beep_delay = diff["beep_delay"]
+        self._session.pause_delay = diff["pause_delay"]
+        self._session.resume_delay = diff["resume_delay"]
         self._session.cooldown_time = diff["cooldown_time"]
-        self._session.detection_pause = diff["detection_pause"]
-        self._session.reaction_delay = diff["reaction_delay"]
         self._session.max_incidents = diff["max_incidents"]
         self._session.required_session_time = diff["required_session_time"]
         self._detector.sensitivity_multiplier = diff["sensitivity"]
@@ -124,8 +125,8 @@ class TrainingPage(Gtk.Box):
     def start_training(self):
         self._apply_difficulty()
         # Test-Modus: Auslöse-Dauer überschreiben
-        if self._window.trigger_duration_override is not None:
-            self._session.trigger_duration = self._window.trigger_duration_override
+        if self._window.pause_delay_override is not None:
+            self._session.pause_delay = self._window.pause_delay_override
         self._detector.reset_calibration()
         self._camera.start()
         self._session.start()
@@ -148,9 +149,9 @@ class TrainingPage(Gtk.Box):
         self._mpris.resume_paused()
 
         # Test-Modus nach Sitzung zurücksetzen
-        if self._window.trigger_duration_override is not None:
-            self._window.trigger_duration_override = None
-            self._window.settings_page.reset_trigger_override()
+        if self._window.pause_delay_override is not None:
+            self._window.pause_delay_override = None
+            self._window.settings_page.reset_pause_override()
 
         self._start_button.set_label("Training starten")
         self._start_button.remove_css_class("destructive-action")
@@ -189,30 +190,36 @@ class TrainingPage(Gtk.Box):
                     self._status_label.set_label("Zunge erkannt!")
                 else:
                     self._status_label.set_label("Training läuft")
+            elif self._session.state == SessionState.WARNING:
+                self._status_label.set_label("Zunge rein!")
+            elif self._session.state == SessionState.DETECTED:
+                remaining = self._session.remaining_resume
+                self._status_label.set_label(
+                    f"Medien pausiert... noch {int(remaining)}s"
+                )
             elif self._session.state == SessionState.COOLDOWN:
                 remaining = self._session.remaining_cooldown
                 self._status_label.set_label(
                     f"Abklingzeit... noch {int(remaining)}s"
                 )
-            elif self._session.state == SessionState.PAUSED:
-                remaining = self._session.remaining_pause
-                self._status_label.set_label(
-                    f"Erkennung pausiert... noch {int(remaining)}s"
-                )
-            # DETECTED: Banner zeigt "Zunge rein!", Label nicht überschreiben
         else:
             self._score_label.set_label("")
             # Auch ohne Gesicht die Session updaten, damit
-            # DETECTED→COOLDOWN und COOLDOWN→RUNNING Übergänge stattfinden
+            # Übergänge stattfinden
             self._session.update(False)
             # "Kein Gesicht" nur im RUNNING-State anzeigen,
-            # damit wichtige Meldungen (Alarm, Cooldown, Pause) nicht überschrieben werden
+            # damit wichtige Meldungen nicht überschrieben werden
             if self._session.state == SessionState.RUNNING:
                 self._status_label.set_label("Kein Gesicht erkannt")
-            elif self._session.state == SessionState.PAUSED:
-                remaining = self._session.remaining_pause
+            elif self._session.state == SessionState.DETECTED:
+                remaining = self._session.remaining_resume
                 self._status_label.set_label(
-                    f"Erkennung pausiert... noch {int(remaining)}s"
+                    f"Medien pausiert... noch {int(remaining)}s"
+                )
+            elif self._session.state == SessionState.COOLDOWN:
+                remaining = self._session.remaining_cooldown
+                self._status_label.set_label(
+                    f"Abklingzeit... noch {int(remaining)}s"
                 )
 
         # Timer aktualisieren
@@ -236,29 +243,35 @@ class TrainingPage(Gtk.Box):
 
         return True  # Weiter pollen
 
-    def _on_alarm(self):
-        """Wird aufgerufen wenn die Zunge zu lange draußen war."""
+    def _on_warning(self):
+        """Wird aufgerufen wenn die Zunge den beep_delay überschritten hat."""
         self._sound.beep()
-        self._mpris.pause_all()
         self._status_banner.set_title("Zunge rein!")
         self._status_banner.set_revealed(True)
 
+    def _on_alarm(self):
+        """Wird aufgerufen wenn die Medienpause ausgelöst wird."""
+        self._mpris.pause_all()
+        self._status_banner.set_title("Vorfall \u2013 Medien pausiert")
+        self._status_banner.set_revealed(True)
+
     def _on_alarm_end(self):
-        """Wird aufgerufen wenn der Alarm vorbei ist."""
+        """Wird aufgerufen wenn die Medien wieder laufen."""
         self._mpris.resume_paused()
         self._status_banner.set_revealed(False)
 
     def _on_state_change(self, new_state: SessionState):
-        if new_state == SessionState.DETECTED:
+        if new_state == SessionState.WARNING:
             self._status_banner.set_title("Zunge rein!")
+            self._status_banner.set_revealed(True)
+            self._status_label.set_label("Zunge rein!")
+        elif new_state == SessionState.DETECTED:
+            self._status_banner.set_title("Vorfall \u2013 Medien pausiert")
             self._status_banner.set_revealed(True)
             self._status_label.set_label("Vorfall erkannt!")
         elif new_state == SessionState.COOLDOWN:
             self._status_banner.set_revealed(False)
             self._status_label.set_label("Abklingzeit...")
-        elif new_state == SessionState.PAUSED:
-            self._status_banner.set_revealed(False)
-            self._status_label.set_label("Erkennung pausiert...")
         elif new_state == SessionState.RUNNING:
             self._status_banner.set_revealed(False)
             self._status_label.set_label("Training läuft")

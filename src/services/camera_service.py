@@ -71,6 +71,10 @@ class CameraService:
             self._running = False
             return
 
+        # 720p anfordern für bessere Landmark-Präzision bei Entfernung
+        self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+
         while self._running:
             ret, frame = self._cap.read()
             if not ret:

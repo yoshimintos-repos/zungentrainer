@@ -82,27 +82,27 @@ class SettingsPage(Adw.PreferencesPage):
         test_group.set_title("Test-Modus")
         self.add(test_group)
 
-        self._trigger_expander = Adw.ExpanderRow()
-        self._trigger_expander.set_title("Auslöse-Dauer überschreiben")
-        self._trigger_expander.set_subtitle(
+        self._pause_expander = Adw.ExpanderRow()
+        self._pause_expander.set_title("Medienpausen-Auslösung überschreiben")
+        self._pause_expander.set_subtitle(
             "Einmalig für die nächste Sitzung, wird danach zurückgesetzt"
         )
-        self._trigger_expander.set_enable_expansion(False)
-        self._trigger_expander.set_expanded(False)
-        self._trigger_expander.set_show_enable_switch(True)
-        self._trigger_expander.connect(
-            "notify::enable-expansion", self._on_trigger_override_toggled
+        self._pause_expander.set_enable_expansion(False)
+        self._pause_expander.set_expanded(False)
+        self._pause_expander.set_show_enable_switch(True)
+        self._pause_expander.connect(
+            "notify::enable-expansion", self._on_pause_override_toggled
         )
-        test_group.add(self._trigger_expander)
+        test_group.add(self._pause_expander)
 
-        self._trigger_spin = Adw.SpinRow.new_with_range(0, 120, 1)
-        self._trigger_spin.set_title("Dauer in Sekunden")
-        self._trigger_spin.set_subtitle(
-            f"Level-Standard: {diff['trigger_duration']:.0f}s"
+        self._pause_spin = Adw.SpinRow.new_with_range(0, 120, 1)
+        self._pause_spin.set_title("Dauer in Sekunden")
+        self._pause_spin.set_subtitle(
+            f"Level-Standard: {diff['pause_delay']:.1f}s"
         )
-        self._trigger_spin.set_value(diff["trigger_duration"])
-        self._trigger_spin.connect("notify::value", self._on_trigger_value_changed)
-        self._trigger_expander.add_row(self._trigger_spin)
+        self._pause_spin.set_value(diff["pause_delay"])
+        self._pause_spin.connect("notify::value", self._on_pause_value_changed)
+        self._pause_expander.add_row(self._pause_spin)
 
         # Daten-Gruppe
         data_group = Adw.PreferencesGroup()
@@ -150,25 +150,25 @@ class SettingsPage(Adw.PreferencesPage):
         self._sens_row.set_subtitle(
             f"{diff['sensitivity']:.1f}x über Baseline (Level {profile.level})"
         )
-        self._trigger_spin.set_subtitle(
-            f"Level-Standard: {diff['trigger_duration']:.0f}s"
+        self._pause_spin.set_subtitle(
+            f"Level-Standard: {diff['pause_delay']:.1f}s"
         )
 
-    def reset_trigger_override(self):
+    def reset_pause_override(self):
         """Setzt den Test-Modus zurück (nach Sitzungsende)."""
-        self._trigger_expander.set_enable_expansion(False)
-        self._trigger_expander.set_expanded(False)
+        self._pause_expander.set_enable_expansion(False)
+        self._pause_expander.set_expanded(False)
 
-    def _on_trigger_override_toggled(self, expander, _param):
+    def _on_pause_override_toggled(self, expander, _param):
         active = expander.get_enable_expansion()
         if active:
-            self._window.trigger_duration_override = self._trigger_spin.get_value()
+            self._window.pause_delay_override = self._pause_spin.get_value()
         else:
-            self._window.trigger_duration_override = None
+            self._window.pause_delay_override = None
 
-    def _on_trigger_value_changed(self, row, _param):
-        if self._trigger_expander.get_enable_expansion():
-            self._window.trigger_duration_override = row.get_value()
+    def _on_pause_value_changed(self, row, _param):
+        if self._pause_expander.get_enable_expansion():
+            self._window.pause_delay_override = row.get_value()
 
     def _on_name_changed(self, row):
         self._window.profile.name = row.get_text()

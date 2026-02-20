@@ -64,12 +64,14 @@ class ProgressPage(Gtk.Box):
         diff_group.set_title("Aktuelle Schwierigkeit")
         content.append(diff_group)
 
-        self._trigger_row = Adw.ActionRow(title="Auslöse-Dauer")
-        diff_group.add(self._trigger_row)
+        self._beep_row = Adw.ActionRow(title="Piep-Verzögerung")
+        diff_group.add(self._beep_row)
+        self._pause_row = Adw.ActionRow(title="Medienpausen-Auslösung")
+        diff_group.add(self._pause_row)
+        self._resume_row = Adw.ActionRow(title="Medienpausen-Dauer")
+        diff_group.add(self._resume_row)
         self._cooldown_row = Adw.ActionRow(title="Abklingzeit")
         diff_group.add(self._cooldown_row)
-        self._reaction_row = Adw.ActionRow(title="Reaktionszeit")
-        diff_group.add(self._reaction_row)
         self._sensitivity_row = Adw.ActionRow(title="Empfindlichkeit")
         diff_group.add(self._sensitivity_row)
         self._max_inc_row = Adw.ActionRow(title="Max. Vorfälle")
@@ -115,9 +117,14 @@ class ProgressPage(Gtk.Box):
 
         # Schwierigkeit
         diff = level_sys.get_difficulty(profile.level)
-        self._trigger_row.set_subtitle(f"{diff['trigger_duration']:.0f} Sekunden")
-        self._cooldown_row.set_subtitle(f"{diff['cooldown_time']:.0f} Sekunden")
-        self._reaction_row.set_subtitle(f"{diff['reaction_delay']:.1f} Sekunden")
+        self._beep_row.set_subtitle(f"{diff['beep_delay']:.1f} Sekunden")
+        self._pause_row.set_subtitle(f"{diff['pause_delay']:.1f} Sekunden")
+        resume = diff['resume_delay']
+        if resume == 0:
+            self._resume_row.set_subtitle("Aus (nur Piep)")
+        else:
+            self._resume_row.set_subtitle(f"{resume:.0f} Sekunden")
+        self._cooldown_row.set_subtitle(f"{diff['cooldown_time']:.1f} Sekunden")
         self._sensitivity_row.set_subtitle(f"{diff['sensitivity']:.1f}x über Baseline")
         max_inc = diff["max_incidents"]
         self._max_inc_row.set_subtitle("Unbegrenzt" if max_inc <= 0 else str(max_inc))

@@ -30,8 +30,8 @@ class ZungenTrainerWindow(Adw.ApplicationWindow):
         self.badge_system = BadgeSystem()
         self.creature_system = CreatureSystem()
 
-        # Test-Modus: einmaliger Override für Auslöse-Dauer
-        self.trigger_duration_override = None
+        # Test-Modus: einmaliger Override für Medienpausen-Auslösedauer
+        self.pause_delay_override = None
 
         # Hauptlayout
         self._build_ui()

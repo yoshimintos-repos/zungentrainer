@@ -8,28 +8,28 @@ import math
 XP_TABLE = [0, 0, 100, 250, 500, 800, 1200, 1700, 2400, 3200, 4200]
 
 # Schwierigkeitsparameter pro Level [Level 1 ... Level 10]
-# (detection_pause_s, reaction_delay_s, sensitivity_multiplier, max_incidents, required_session_time_s)
+# (beep_delay_s, pause_delay_s, resume_delay_s, cooldown_s,
+#  sensitivity_multiplier, max_incidents, required_session_time_s)
 #
-# detection_pause_s: Nach einem Vorfall bleibt die Erkennung so lange aus.
-# Level 1: 0s (ständige Überwachung), Level 10: 20s (Selbstdisziplin nötig).
-#
+# beep_delay: Sekunden bis Piep-Warnung (schneller = schwerer)
+# pause_delay: Sekunden bis Medienpause ab Zungenstart (schneller = schwerer)
+# resume_delay: Wie lange Medien pausiert bleiben = "Erkennungspause" (länger = schwerer)
 # sensitivity_multiplier: Wie viel der Score über der Baseline liegen muss.
-# Höher = weniger empfindlich = einfacher (Level 1).
-# Niedriger = empfindlicher = schwerer (Level 10).
-#
-# trigger_duration und cooldown_time sind fest auf 5s gesetzt (siehe get_difficulty).
+#   Höher = weniger empfindlich = einfacher (Level 1).
+#   Niedriger = empfindlicher = schwerer (Level 10).
 DIFFICULTY = [
     None,  # Index 0 nicht genutzt
-    (0.0,  3.0, 3.5, 0,  600.0),   # Level 1: ständige Überwachung
-    (2.0,  2.7, 3.2, 0,  660.0),   # Level 2
-    (4.0,  2.4, 2.9, 0,  720.0),   # Level 3
-    (7.0,  2.0, 2.6, 10, 780.0),   # Level 4
-    (9.0,  1.7, 2.3, 8,  900.0),   # Level 5
-    (11.0, 1.3, 2.0, 7,  1020.0),  # Level 6
-    (13.0, 1.0, 1.8, 6,  1140.0),  # Level 7
-    (16.0, 0.7, 1.6, 5,  1320.0),  # Level 8
-    (18.0, 0.3, 1.4, 4,  1500.0),  # Level 9
-    (20.0, 0.0, 1.2, 3,  1800.0),  # Level 10: Selbstdisziplin nötig
+    # beep  pause  resume  cool   sens   max_inc  session_time
+    (1.0,   3.0,    0.0,   5.0,   2.5,   0,       600.0),   # Level 1
+    (0.9,   2.7,    2.0,   5.0,   2.3,   0,       660.0),   # Level 2
+    (0.8,   2.4,    4.0,   4.5,   2.1,   0,       720.0),   # Level 3
+    (0.7,   2.0,    7.0,   4.5,   1.9,   10,      780.0),   # Level 4
+    (0.5,   1.7,    9.0,   4.0,   1.7,   8,       900.0),   # Level 5
+    (0.4,   1.4,   11.0,   4.0,   1.5,   7,      1020.0),   # Level 6
+    (0.3,   1.1,   13.0,   3.5,   1.3,   6,      1140.0),   # Level 7
+    (0.2,   0.8,   16.0,   3.5,   1.1,   5,      1320.0),   # Level 8
+    (0.1,   0.5,   18.0,   3.0,   0.9,   4,      1500.0),   # Level 9
+    (0.0,   0.3,   20.0,   3.0,   0.8,   3,      1800.0),   # Level 10
 ]
 
 MAX_LEVEL = 10
@@ -92,13 +92,13 @@ class LevelSystem:
         level = max(1, min(MAX_LEVEL, level))
         t = DIFFICULTY[level]
         return {
-            "trigger_duration": 5.0,
-            "cooldown_time": 5.0,
-            "detection_pause": t[0],
-            "reaction_delay": t[1],
-            "sensitivity": t[2],
-            "max_incidents": t[3],
-            "required_session_time": t[4],
+            "beep_delay": t[0],
+            "pause_delay": t[1],
+            "resume_delay": t[2],
+            "cooldown_time": t[3],
+            "sensitivity": t[4],
+            "max_incidents": t[5],
+            "required_session_time": t[6],
         }
 
     def check_level_up(self, profile) -> list[int]:

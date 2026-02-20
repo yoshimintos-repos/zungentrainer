@@ -10,25 +10,31 @@ Gedacht als Unterstützung bei myofunktioneller Therapie (Logopädie / Kieferort
 
 ### Echtzeit-Zungenerkennung
 
-- Webcam-basierte Gesichtsanalyse mit [MediaPipe](https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker) Face Landmarks
-- Kombiniert ~10 Signale (innere/äußere Lippenlücke, Mundfläche, Kieferöffnung, Blendshapes) zu einem gewichteten Composite-Score
+- Webcam-basierte Gesichtsanalyse mit [MediaPipe](https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker) Face Landmarks im VIDEO-Modus (temporales Tracking)
+- Kombiniert ~11 Signale (innere/äußere Lippenlücke, Mundfläche, Kieferöffnung, Blendshapes inkl. mouthShrugLower) zu einem gewichteten Composite-Score
 - Dynamische Baseline-Kalibrierung: Die ersten ~2 Sekunden jeder Sitzung messen den Ruhezustand des Gesichts. Danach wird nur die Abweichung vom persönlichen Ruhewert als Auslöser verwendet
-- 5-Frame zeitliche Glättung gegen Flackern
+- Laufende Baseline-Adaption (EMA) gleicht Drift durch Positions- und Lichtwechsel aus
+- One-Euro-Filter (Casiez et al. 2012) für adaptive Glättung: stark geglättet bei Ruhe (weniger Fehlalarme), reaktionsschnell bei Bewegung (weniger Verzögerung)
+- 720p Kameraauflösung für bessere Landmark-Präzision bei Entfernung
 
-### Alarm-System
+### Zwei-Stufen-Alarm-System
 
-- Konfigurierbarer Piepton über GStreamer (Frequenz und Lautstärke einstellbar)
-- Automatische Pausierung aller laufenden Medienplayer über D-Bus MPRIS2 (Spotify, Firefox, VLC, etc.) bei Erkennung, mit Wiederaufnahme nach Abklingzeit
+1. **Piep-Warnung** nach konfigurierbarer Verzögerung (0–1 s). Wenn die Zunge zurückgeht → kein Vorfall.
+2. **Medienpause** nach weiterer Verzögerung (0,3–3 s ab Zungenstart). Vorfall wird gezählt, laufende Medienplayer werden über D-Bus MPRIS2 pausiert.
+3. **Medien bleiben pausiert** für die Level-abhängige "Erkennungspause" (0–20 s), danach Abklingzeit.
+
+- Pieptöne über GStreamer (Frequenz und Lautstärke einstellbar)
+- Automatische Pausierung aller laufenden Medienplayer (Spotify, Firefox, VLC, etc.) mit Wiederaufnahme nach Erkennungspause
 
 ### 10-Stufen Schwierigkeitssystem
 
-Auslöse-Dauer (Zunge draußen bis Alarm) und Abklingzeit sind fest auf **5 Sekunden** gesetzt. Die Schwierigkeit skaliert über Erkennungspause, Empfindlichkeit und erlaubte Vorfälle:
-
 | Parameter | Level 1 (leicht) | Level 10 (schwer) |
 |-----------|------------------:|-------------------:|
-| Erkennungspause nach Vorfall | 0 s | 20 s |
-| Reaktionsverzögerung | 3.0 s | 0 s |
-| Empfindlichkeits-Multiplikator | 3.5x | 1.2x |
+| Piep-Verzögerung | 1,0 s | 0 s |
+| Medienpausen-Auslösung | 3,0 s | 0,3 s |
+| Medienpausen-Dauer (Erkennungspause) | 0 s (nur Piep) | 20 s |
+| Abklingzeit | 5,0 s | 3,0 s |
+| Empfindlichkeits-Multiplikator | 2,5x | 0,8x |
 | Max. erlaubte Vorfälle | unbegrenzt | 3 |
 | Mindest-Sitzungsdauer | 10 min | 30 min |
 
@@ -47,7 +53,7 @@ Freischaltbar durch Sitzungsanzahl, Erfolgsserien, perfekte Sitzungen (0 Vorfäl
 - **Training**: Kamera-Feed mit Start/Stop, Timer, Vorfalls-Zähler und Score-Anzeige
 - **Fortschritt**: Level, XP-Balken, aktuelle Schwierigkeitsparameter und Gesamtstatistiken
 - **Sammlung**: Zungenfreunde-Galerie und Abzeichen-Übersicht
-- **Einstellungen**: Kamera-Auswahl, Piepton-Konfiguration, Test-Modus (Auslöse-Dauer einmalig überschreiben), Name ändern, Fortschritt zurücksetzen
+- **Einstellungen**: Kamera-Auswahl, Piepton-Konfiguration, Test-Modus (Medienpausen-Auslösung einmalig überschreiben), Name ändern, Fortschritt zurücksetzen
 
 ## Technischer Aufbau
 
@@ -59,9 +65,9 @@ src/
   main.py                  # Adw.Application, Entry Point
   window.py                # Zentraler Mediator: hält DataStore, Profile, Gamification-Systeme
   services/
-    camera_service.py      # Threaded OpenCV-Capture mit Lock-basiertem Frame-Zugriff
-    detector_service.py    # MediaPipe FaceLandmarker → Composite-Score + Baseline-Kalibrierung
-    session_service.py     # Zustandsmaschine (IDLE → RUNNING → DETECTED → COOLDOWN)
+    camera_service.py      # Threaded OpenCV-Capture (720p) mit Lock-basiertem Frame-Zugriff
+    detector_service.py    # MediaPipe FaceLandmarker (VIDEO-Modus) → Composite-Score + One-Euro-Filter + Baseline-Adaption
+    session_service.py     # Zwei-Stufen-Zustandsmaschine (IDLE → RUNNING → WARNING → DETECTED → COOLDOWN)
     sound_service.py       # GStreamer audiotestsrc Piepton
     mpris_service.py       # D-Bus MPRIS2 Mediensteuerung
   gamification/
@@ -91,11 +97,11 @@ data/
 
 **Trainings-Loop:** `TrainingPage` startet einen `GLib.timeout_add(33, ...)` Callback (~30 FPS), der auf dem GTK-Main-Thread läuft. Jeder Tick: Frame von `CameraService` holen → durch `DetectorService` analysieren → `SessionService.update()` mit Ergebnis füttern → UI aktualisieren.
 
-**Kamera-Threading:** `CameraService` läuft in einem Daemon-Thread mit `cv2.VideoCapture`. Frames werden über einen `threading.Lock` thread-sicher an den GTK-Main-Thread übergeben. `CameraPaintable` konvertiert BGR→RGB und erzeugt `Gdk.MemoryTexture` für die Anzeige.
+**Kamera-Threading:** `CameraService` läuft in einem Daemon-Thread mit `cv2.VideoCapture` (720p). Frames werden über einen `threading.Lock` thread-sicher an den GTK-Main-Thread übergeben. `CameraPaintable` konvertiert BGR→RGB und erzeugt `Gdk.MemoryTexture` für die Anzeige.
 
-**Erkennungs-Pipeline:** `DetectorService` extrahiert Signale aus MediaPipe Face Landmarks und Blendshapes, berechnet einen gewichteten Score, kalibriert eine Baseline über die ersten 60 Frames (Median), und vergleicht den geglätteten Score gegen `baseline + baseline * sensitivity_multiplier`.
+**Erkennungs-Pipeline:** `DetectorService` nutzt MediaPipe im VIDEO-Modus (temporales Tracking) und extrahiert ~11 Signale aus Face Landmarks und Blendshapes (inkl. mouthShrugLower für subtile Zungenprotrusion). Der gewichtete Composite-Score wird mit einem One-Euro-Filter adaptiv geglättet (minimale Latenz bei Bewegung, starke Glättung bei Ruhe). Die Baseline wird initial aus 60 Frames (Median) kalibriert und läuft danach per EMA (α=0.005) mit, um Drift auszugleichen. Confidence-Schwellwerte bei 0.4 für bessere Erkennung auf Entfernung.
 
-**Sitzungs-Zustandsmaschine:** `SessionService` durchläuft IDLE → RUNNING → DETECTED → COOLDOWN → PAUSED → RUNNING. Der PAUSED-State setzt die Erkennung für `detection_pause` Sekunden aus (Level-abhängig, 0–20 s). Löst Callbacks für Alarm-Start (`on_alarm`) und Alarm-Ende (`on_alarm_end`) aus. TrainingPage verdrahtet diese mit SoundService und MprisService.
+**Zwei-Stufen-Alarm:** `SessionService` durchläuft IDLE → RUNNING → WARNING → DETECTED → COOLDOWN → RUNNING. WARNING löst nur einen Piep aus — geht die Zunge zurück, wird kein Vorfall gezählt. DETECTED pausiert Medien für `resume_delay` Sekunden (= "Erkennungspause", Level-abhängig 0–20s). Bei `resume_delay == 0` (Level 1) werden Medien gar nicht pausiert. Callbacks: `on_warning()` (Piep), `on_alarm()` (Medienpause), `on_alarm_end()` (Mediaresume).
 
 **Datenpersistenz:** JSON-Profil unter `$XDG_DATA_HOME/zungentrainer/profile.json`. Atomares Schreiben über temporäre Datei + `os.replace()`. Beim lokalen Entwickeln setzt `run.sh` die Umgebungsvariable `ZUNGENTRAINER_DATA_DIR` auf das lokale `data/`-Verzeichnis.
 

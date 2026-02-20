@@ -1,13 +1,16 @@
 """MediaPipe FaceLandmarker-basierte Zungen-Erkennung.
 
 Nutzt eine Kombination aus:
-1. Face-Blendshapes (jawOpen, mouthClose, mouthLowerDown, mouthUpperUp)
+1. Face-Blendshapes (jawOpen, mouthClose, mouthLowerDown, mouthUpperUp, mouthShrugLower)
 2. Multi-Landmark Mund-Analyse (innere Lippenkontur, Mundbereich-Fläche)
 3. Dynamische Baseline-Kalibrierung (passt sich an jedes Gesicht an)
-4. Zeitliche Glättung (verhindert Flackern)
+4. Adaptive Glättung (One-Euro-Filter für minimale Latenz bei schneller Reaktion)
+5. Laufende Baseline-Adaption (EMA bei Ruhe für Drift-Ausgleich)
 """
 
 import os
+import math
+import time
 import collections
 import cv2
 import numpy as np
@@ -36,8 +39,73 @@ INNER_LIP_CONTOUR = [78, 191, 80, 81, 82, 13, 312, 311, 310, 415,
 
 # Kalibrierungskonstanten
 CALIBRATION_FRAMES = 60      # ~2 Sekunden bei 30 FPS
-SMOOTHING_WINDOW = 5         # Frames für zeitliche Glättung
 MIN_FACE_HEIGHT = 0.001      # Minimum normalisierte Gesichtshöhe
+
+# One-Euro-Filter-Parameter
+OEF_MIN_CUTOFF = 0.7         # Minimale Cutoff-Frequenz (Hz) — Glättung bei Ruhe
+OEF_BETA = 0.007             # Geschwindigkeits-Koeffizient — Reaktion bei Bewegung
+OEF_D_CUTOFF = 1.0           # Cutoff für Ableitung
+
+# Baseline-Adaption
+BASELINE_EMA_ALPHA = 0.005   # Langsame Anpassung bei Ruhe
+
+
+class OneEuroFilter:
+    """Adaptiver Rauschfilter nach Casiez et al. 2012.
+
+    Glättet stark bei langsamer Bewegung (weniger Fehlalarme),
+    reagiert schnell bei schneller Bewegung (weniger Latenz).
+    """
+
+    def __init__(self, min_cutoff=OEF_MIN_CUTOFF, beta=OEF_BETA,
+                 d_cutoff=OEF_D_CUTOFF):
+        self._min_cutoff = min_cutoff
+        self._beta = beta
+        self._d_cutoff = d_cutoff
+        self._x_prev = None
+        self._dx_prev = 0.0
+        self._t_prev = None
+
+    def reset(self):
+        self._x_prev = None
+        self._dx_prev = 0.0
+        self._t_prev = None
+
+    @staticmethod
+    def _smoothing_factor(te, cutoff):
+        r = 2.0 * math.pi * cutoff * te
+        return r / (r + 1.0)
+
+    def __call__(self, x, t=None):
+        if t is None:
+            t = time.monotonic()
+
+        if self._t_prev is None:
+            self._x_prev = x
+            self._dx_prev = 0.0
+            self._t_prev = t
+            return x
+
+        te = t - self._t_prev
+        if te <= 0:
+            return self._x_prev if self._x_prev is not None else x
+        self._t_prev = t
+
+        # Ableitung filtern
+        a_d = self._smoothing_factor(te, self._d_cutoff)
+        dx = (x - self._x_prev) / te
+        dx_hat = a_d * dx + (1.0 - a_d) * self._dx_prev
+        self._dx_prev = dx_hat
+
+        # Adaptive Cutoff-Frequenz
+        cutoff = self._min_cutoff + self._beta * abs(dx_hat)
+
+        # Signal filtern
+        a = self._smoothing_factor(te, cutoff)
+        x_hat = a * x + (1.0 - a) * self._x_prev
+        self._x_prev = x_hat
+
+        return x_hat
 
 
 class DetectorService:
@@ -49,10 +117,11 @@ class DetectorService:
     - Mundöffnungs-Fläche: Fläche der inneren Lippenkontur
     - Unterlippenabsenkung: Wie weit die Unterlippe zum Kinn wandert
     - mouthClose (invertiert): Niedrig wenn Mund offen
+    - mouthShrugLower: Aktiviert wenn Zunge gegen Unterlippe drückt
 
     Dynamische Kalibrierung: Die ersten ~2 Sekunden jeder Sitzung
     messen die Ruhewerte. Danach wird die Abweichung vom Ruhezustand
-    als Auslöser verwendet.
+    als Auslöser verwendet. Laufende Baseline-Adaption gleicht Drift aus.
     """
 
     def __init__(self, model_path: str = None):
@@ -70,10 +139,15 @@ class DetectorService:
         base_options = python.BaseOptions(model_asset_path=model_path)
         options = vision.FaceLandmarkerOptions(
             base_options=base_options,
+            running_mode=vision.RunningMode.VIDEO,
             num_faces=1,
             output_face_blendshapes=True,
+            min_face_detection_confidence=0.4,
+            min_face_presence_confidence=0.4,
+            min_tracking_confidence=0.4,
         )
         self._detector = vision.FaceLandmarker.create_from_options(options)
+        self._frame_timestamp_ms = 0
 
         # Schwellwert-Multiplikator (wird vom Level-System gesetzt)
         # Höher = weniger empfindlich (einfacher)
@@ -84,12 +158,12 @@ class DetectorService:
         self._absolute_threshold = 0.35
 
         # Kalibrierung
-        self._calibration_buffer: list[dict] = []
-        self._baseline: dict | None = None
+        self._calibration_buffer: list[float] = []
+        self._baseline: float | None = None
         self._calibrated = False
 
-        # Zeitliche Glättung
-        self._score_history = collections.deque(maxlen=SMOOTHING_WINDOW)
+        # One-Euro-Filter für adaptive Glättung
+        self._score_filter = OneEuroFilter()
 
     @property
     def sensitivity_multiplier(self):
@@ -97,14 +171,15 @@ class DetectorService:
 
     @sensitivity_multiplier.setter
     def sensitivity_multiplier(self, value: float):
-        self._sensitivity_multiplier = max(1.2, min(5.0, value))
+        self._sensitivity_multiplier = max(0.5, min(5.0, value))
 
     def reset_calibration(self):
         """Setzt die Kalibrierung zurück (bei neuem Training-Start)."""
         self._calibration_buffer.clear()
         self._baseline = None
         self._calibrated = False
-        self._score_history.clear()
+        self._score_filter.reset()
+        self._frame_timestamp_ms = 0
 
     def detect(self, frame: np.ndarray) -> dict:
         """Analysiert einen BGR-Frame.
@@ -121,7 +196,11 @@ class DetectorService:
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
 
-        result = self._detector.detect(mp_image)
+        # VIDEO-Modus: aufsteigende Timestamps erforderlich
+        self._frame_timestamp_ms += 33  # ~30 FPS
+        result = self._detector.detect_for_video(
+            mp_image, self._frame_timestamp_ms
+        )
 
         no_face = {
             "face_detected": False,
@@ -157,12 +236,18 @@ class DetectorService:
             if len(self._calibration_buffer) >= CALIBRATION_FRAMES:
                 self._finish_calibration()
 
-        # ── Zeitliche Glättung ──────────────────────────────
-        self._score_history.append(score)
-        smoothed = sum(self._score_history) / len(self._score_history)
+        # ── Adaptive Glättung (One-Euro-Filter) ─────────────
+        smoothed = self._score_filter(score)
 
         # ── Entscheidung ────────────────────────────────────
         tongue_out = self._is_tongue_out(smoothed)
+
+        # ── Laufende Baseline-Adaption ──────────────────────
+        if self._calibrated and self._baseline is not None and not tongue_out:
+            self._baseline = (
+                (1.0 - BASELINE_EMA_ALPHA) * self._baseline
+                + BASELINE_EMA_ALPHA * score
+            )
 
         return {
             "face_detected": True,
@@ -228,6 +313,7 @@ class DetectorService:
             blendshapes.get("mouthStretchLeft", 0.0) +
             blendshapes.get("mouthStretchRight", 0.0)
         ) / 2.0
+        mouth_shrug_lower = blendshapes.get("mouthShrugLower", 0.0)
 
         return {
             "inner_gap": inner_gap,
@@ -240,6 +326,7 @@ class DetectorService:
             "mouth_lower_down": mouth_lower_down,
             "mouth_upper_up": mouth_upper_up,
             "mouth_stretch": mouth_stretch,
+            "mouth_shrug_lower": mouth_shrug_lower,
         }
 
     def _compute_score(self, signals: dict) -> float:
@@ -252,6 +339,7 @@ class DetectorService:
         - mouth_lower_down: Unterlippe wird durch Zunge nach unten gedrückt
         - mouth_upper_up: Oberlippe hebt sich
         - mouth_close: Invertiert — niedrig wenn Mund offen
+        - mouth_shrug_lower: Zunge drückt gegen Unterlippe
         """
         score = (
             signals["inner_gap"] * 5.0
@@ -260,6 +348,7 @@ class DetectorService:
             + signals["mouth_lower_down"] * 2.0
             + signals["mouth_upper_up"] * 1.5
             + signals["mouth_stretch"] * 1.0
+            + signals["mouth_shrug_lower"] * 2.0
             - signals["mouth_close"] * 2.0
         )
         return max(0.0, score)
@@ -286,10 +375,9 @@ class DetectorService:
         if self._calibrated and self._baseline is not None:
             # Kalibrierter Modus: Score muss deutlich über Baseline liegen
             # Baseline + (Baseline * Multiplikator) = Schwellwert
-            # Bei Ruhewert ~0.16 und Multiplikator 2.5: Schwelle ≈ 0.56
             threshold = self._baseline + (self._baseline * self._sensitivity_multiplier)
             # Mindest-Schwellwert um Fehlauslösungen bei sehr kleiner Baseline zu vermeiden
-            threshold = max(threshold, 0.20)
+            threshold = max(threshold, 0.15)
             return smoothed_score > threshold
         else:
             # Vor Kalibrierung: absoluter Schwellwert
