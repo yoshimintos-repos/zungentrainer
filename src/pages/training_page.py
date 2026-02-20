@@ -266,8 +266,12 @@ class TrainingPage(Gtk.Box):
             self._status_banner.set_revealed(True)
             self._status_label.set_label("Zunge rein!")
         elif new_state == SessionState.DETECTED:
-            self._status_banner.set_title("Vorfall \u2013 Medien pausiert")
-            self._status_banner.set_revealed(True)
+            if self._session.resume_delay > 0:
+                self._status_banner.set_title("Vorfall \u2013 Medien pausiert")
+                self._status_banner.set_revealed(True)
+            else:
+                self._status_banner.set_title("Vorfall erkannt!")
+                self._status_banner.set_revealed(True)
             self._status_label.set_label("Vorfall erkannt!")
         elif new_state == SessionState.COOLDOWN:
             self._status_banner.set_revealed(False)
