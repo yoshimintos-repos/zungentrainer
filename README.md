@@ -26,8 +26,8 @@ Jedes Level steuert automatisch diese Parameter:
 
 | Parameter | Level 1 (leicht) | Level 10 (schwer) |
 |-----------|------------------:|-------------------:|
-| Auslöse-Dauer (Zunge draußen bis Alarm) | 45 s | 3 s |
-| Abklingzeit zwischen Erkennungen | 300 s | 30 s |
+| Auslöse-Dauer (Zunge draußen bis Alarm) | 20 s | 2 s |
+| Abklingzeit zwischen Erkennungen | 200 s | 20 s |
 | Empfindlichkeits-Multiplikator | 3.5x | 1.2x |
 | Max. erlaubte Vorfälle | unbegrenzt | 3 |
 | Mindest-Sitzungsdauer | 10 min | 30 min |
