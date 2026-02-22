@@ -1,17 +1,20 @@
 """MediaPipe FaceLandmarker-basierte Zungen-Erkennung.
 
 Nutzt eine Kombination aus:
-1. Face-Blendshapes (jawOpen, mouthClose, mouthLowerDown, mouthUpperUp, mouthShrugLower)
+1. Face-Blendshapes (jawOpen, mouthClose, mouthLowerDown, mouthUpperUp,
+   mouthShrugLower, mouthShrugUpper)
 2. Multi-Landmark Mund-Analyse (innere Lippenkontur, Mundbereich-Fläche)
-3. Dynamische Baseline-Kalibrierung (passt sich an jedes Gesicht an)
+3. Dynamische Baseline-Kalibrierung mit MAD-basierter Schwellwertberechnung
 4. Adaptive Glättung (One-Euro-Filter für minimale Latenz bei schneller Reaktion)
 5. Laufende Baseline-Adaption (EMA bei Ruhe für Drift-Ausgleich)
+
+Hinweis: MediaPipe liefert KEINEN tongueOut-Blendshape (trotz ARKit-Doku).
+Die Erkennung arbeitet rein indirekt über Lippengeometrie und Mundform.
 """
 
 import os
 import math
 import time
-import collections
 import cv2
 import numpy as np
 import mediapipe as mp
@@ -48,6 +51,10 @@ OEF_D_CUTOFF = 1.0           # Cutoff für Ableitung
 
 # Baseline-Adaption
 BASELINE_EMA_ALPHA = 0.005   # Langsame Anpassung bei Ruhe
+
+# MAD-basierte Schwellwert-Parameter
+MAD_SCALE = 6.0              # MAD-Multiplikator (wird mit sensitivity_multiplier skaliert)
+MIN_SCORE_OFFSET = 0.08      # Mindest-Offset über Baseline (auch bei perfekt stabiler Baseline)
 
 
 class OneEuroFilter:
@@ -112,17 +119,18 @@ class DetectorService:
     """Erkennt Zungenfehlstellung mittels Multi-Signal-Analyse.
 
     Die Erkennung kombiniert mehrere Signale zu einem Composite-Score:
-    - tongueOut Blendshape: Direktes ML-Signal für Zungenprotrusion (stärkstes Signal)
+    - mouthShrugLower/Upper: Aktiviert wenn Zunge gegen Lippen drückt
     - jawOpen Blendshape: Direktes ML-Signal für Kieferöffnung
     - Innere Lippenlücke: Geometrischer Abstand obere/untere Innenlippe
     - Mundöffnungs-Fläche: Fläche der inneren Lippenkontur
     - Unterlippenabsenkung: Wie weit die Unterlippe zum Kinn wandert
     - mouthClose (invertiert): Niedrig wenn Mund offen
-    - mouthShrugLower: Aktiviert wenn Zunge gegen Unterlippe drückt
 
-    Dynamische Kalibrierung: Die ersten ~2 Sekunden jeder Sitzung
-    messen die Ruhewerte. Danach wird die Abweichung vom Ruhezustand
-    als Auslöser verwendet. Laufende Baseline-Adaption gleicht Drift aus.
+    Schwellwert-Berechnung: MAD-basiert (Median Absolute Deviation).
+    Die Kalibrierung misst sowohl den Ruhewert (Median) als auch die
+    Variabilität (MAD). Der Schwellwert ist baseline + MAD * Faktor.
+    → Stabile Baseline: kleine Abweichungen werden erkannt
+    → Unruhige Baseline: mehr Toleranz, weniger Fehlalarme
     """
 
     def __init__(self, model_path: str = None):
@@ -165,7 +173,7 @@ class DetectorService:
 
         # Schwellwert-Multiplikator (wird vom Level-System gesetzt)
         # Höher = weniger empfindlich (einfacher)
-        # Ein Wert von 2.0 bedeutet: Score muss 2x über Baseline sein
+        # Wird mit MAD skaliert: threshold = baseline + MAD * multiplier * MAD_SCALE
         self._sensitivity_multiplier = 2.5
 
         # Absoluter Fallback-Schwellwert (ohne Kalibrierung)
@@ -174,6 +182,7 @@ class DetectorService:
         # Kalibrierung
         self._calibration_buffer: list[float] = []
         self._baseline: float | None = None
+        self._baseline_mad: float = 0.0  # Median Absolute Deviation
         self._calibrated = False
 
         # One-Euro-Filter für adaptive Glättung
@@ -196,6 +205,7 @@ class DetectorService:
         """
         self._calibration_buffer.clear()
         self._baseline = None
+        self._baseline_mad = 0.0
         self._calibrated = False
         self._score_filter.reset()
 
@@ -347,7 +357,7 @@ class DetectorService:
             blendshapes.get("mouthStretchRight", 0.0)
         ) / 2.0
         mouth_shrug_lower = blendshapes.get("mouthShrugLower", 0.0)
-        tongue_out_bs = blendshapes.get("tongueOut", 0.0)
+        mouth_shrug_upper = blendshapes.get("mouthShrugUpper", 0.0)
 
         return {
             "inner_gap": inner_gap,
@@ -361,41 +371,46 @@ class DetectorService:
             "mouth_upper_up": mouth_upper_up,
             "mouth_stretch": mouth_stretch,
             "mouth_shrug_lower": mouth_shrug_lower,
-            "tongue_out_bs": tongue_out_bs,
+            "mouth_shrug_upper": mouth_shrug_upper,
         }
 
     def _compute_score(self, signals: dict) -> float:
         """Berechnet den gewichteten Composite-Score.
 
         Gewichte basierend auf Signal-Zuverlässigkeit und Diskriminierungskraft:
-        - tongue_out_bs: Direktes ML-Signal für Zungenprotrusion (ARKit tongueOut)
+        - mouth_shrug_lower: Zunge drückt gegen Unterlippe (stärkstes indirektes Signal)
         - inner_gap: Sehr zuverlässig, großer Unterschied Ruhe↔Zunge
         - jaw_open: Direkte ML-Schätzung der Kieferöffnung
         - norm_area: Fläche korreliert stark mit Mundöffnung
         - mouth_lower_down: Unterlippe wird durch Zunge nach unten gedrückt
         - mouth_upper_up: Oberlippe hebt sich
+        - mouth_shrug_upper: Oberlippe wird durch Zungenposition beeinflusst
         - mouth_close: Invertiert — niedrig wenn Mund offen
-        - mouth_shrug_lower: Zunge drückt gegen Unterlippe
         """
         score = (
-            signals["tongue_out_bs"] * 8.0
+            signals["mouth_shrug_lower"] * 4.0
+            + signals["mouth_shrug_upper"] * 2.0
             + signals["inner_gap"] * 5.0
             + signals["jaw_open"] * 3.0
-            + signals["norm_area"] * 25.0
-            + signals["mouth_lower_down"] * 2.0
+            + signals["norm_area"] * 20.0
+            + signals["mouth_lower_down"] * 2.5
             + signals["mouth_upper_up"] * 1.5
             + signals["mouth_stretch"] * 1.0
-            + signals["mouth_shrug_lower"] * 2.0
             - signals["mouth_close"] * 2.0
         )
         return max(0.0, score)
 
     def _finish_calibration(self):
-        """Berechnet die Baseline aus dem Kalibrierungspuffer."""
+        """Berechnet Baseline und MAD aus dem Kalibrierungspuffer.
+
+        MAD (Median Absolute Deviation) ist ein robustes Streuungsmaß.
+        Es misst die typische Abweichung vom Ruhewert und bestimmt damit,
+        wie stark der Score steigen muss, um als Zunge erkannt zu werden.
+        """
         if not self._calibration_buffer:
             return
 
-        # Korrekter Median: bei gerader Anzahl Durchschnitt der mittleren zwei Werte
+        # Median als Baseline (robust gegen Ausreißer)
         scores = sorted(self._calibration_buffer)
         n = len(scores)
         mid = n // 2
@@ -403,6 +418,14 @@ class DetectorService:
             self._baseline = (scores[mid - 1] + scores[mid]) / 2.0
         else:
             self._baseline = scores[mid]
+
+        # MAD: Median der absoluten Abweichungen vom Median
+        deviations = sorted(abs(s - self._baseline) for s in scores)
+        if n % 2 == 0:
+            self._baseline_mad = (deviations[mid - 1] + deviations[mid]) / 2.0
+        else:
+            self._baseline_mad = deviations[mid]
+
         self._calibrated = True
 
     def cleanup(self):
@@ -412,13 +435,27 @@ class DetectorService:
             self._detector = None
 
     def _is_tongue_out(self, smoothed_score: float) -> bool:
-        """Entscheidet ob die Zunge draußen ist."""
+        """Entscheidet ob die Zunge draußen ist.
+
+        Schwellwert = baseline + MAD * sensitivity_multiplier * MAD_SCALE
+
+        Die MAD-basierte Berechnung passt sich an die tatsächliche Variabilität an:
+        - Stabile Baseline (kleine MAD): Schon kleine Score-Änderungen werden erkannt
+          → erkennt auch leichtes Herausstrecken der Zunge
+        - Unruhige Baseline (große MAD): Höherer Schwellwert nötig
+          → weniger Fehlalarme bei natürlichen Mundbewegungen
+
+        sensitivity_multiplier wird vom Level-System gesteuert:
+        - Level 1 (einfach): 2.5 → hoher Schwellwert, erkennt nur deutliche Zunge
+        - Level 10 (schwer): 0.8 → niedriger Schwellwert, erkennt subtile Zunge
+        """
         if self._calibrated and self._baseline is not None:
-            # Kalibrierter Modus: Score muss deutlich über Baseline liegen
-            # Baseline + (Baseline * Multiplikator) = Schwellwert
-            threshold = self._baseline + (self._baseline * self._sensitivity_multiplier)
-            # Mindest-Schwellwert um Fehlauslösungen bei sehr kleiner Baseline zu vermeiden
-            threshold = max(threshold, 0.15)
+            # MAD-basierter Schwellwert
+            mad_offset = self._baseline_mad * self._sensitivity_multiplier * MAD_SCALE
+            # Mindest-Offset: auch bei perfekt stabiler Baseline (MAD≈0) brauchen
+            # wir eine minimale Schwelle, um Rauschen nicht als Zunge zu werten
+            offset = max(mad_offset, MIN_SCORE_OFFSET)
+            threshold = self._baseline + offset
             return smoothed_score > threshold
         else:
             # Vor Kalibrierung: absoluter Schwellwert
