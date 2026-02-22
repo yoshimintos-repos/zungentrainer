@@ -90,7 +90,11 @@ class ZungenTrainerWindow(Adw.ApplicationWindow):
         )
 
     def save_profile(self):
-        self.data_store.save(self.profile)
+        """Speichert das Profil; loggt Fehler statt App abstürzen zu lassen."""
+        try:
+            self.data_store.save(self.profile)
+        except Exception as e:
+            print(f"Fehler beim Speichern des Profils: {e}")
 
     def refresh_pages(self):
         """Alle Seiten nach Datenänderung aktualisieren."""

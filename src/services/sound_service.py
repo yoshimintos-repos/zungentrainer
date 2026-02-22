@@ -37,11 +37,13 @@ class SoundService:
         """Spielt einen kurzen Piepton ab."""
         from gi.repository import GLib
 
-        # Alten Beep sauber beenden (inkl. Timeout)
+        # Alten Beep sauber beenden (inkl. Timeout und Bus-Watch)
         if self._timeout_id is not None:
             GLib.source_remove(self._timeout_id)
             self._timeout_id = None
         if self._pipeline:
+            bus = self._pipeline.get_bus()
+            bus.remove_signal_watch()
             self._pipeline.set_state(Gst.State.NULL)
             self._pipeline = None
 
@@ -64,6 +66,8 @@ class SoundService:
     def _stop_beep(self):
         self._timeout_id = None
         if self._pipeline:
+            bus = self._pipeline.get_bus()
+            bus.remove_signal_watch()
             self._pipeline.set_state(Gst.State.NULL)
             self._pipeline = None
         return False
@@ -80,5 +84,7 @@ class SoundService:
             GLib.source_remove(self._timeout_id)
             self._timeout_id = None
         if self._pipeline:
+            bus = self._pipeline.get_bus()
+            bus.remove_signal_watch()
             self._pipeline.set_state(Gst.State.NULL)
             self._pipeline = None

@@ -48,7 +48,7 @@ class LevelSystem:
         """XP-Fortschritt innerhalb des aktuellen Levels."""
         if current_level >= MAX_LEVEL:
             return 0
-        return total_xp - XP_TABLE[current_level]
+        return max(0, total_xp - XP_TABLE[current_level])
 
     def calculate_level(self, total_xp: int) -> int:
         """Berechnet das Level basierend auf Gesamt-XP."""

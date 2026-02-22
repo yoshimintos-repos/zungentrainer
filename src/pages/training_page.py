@@ -123,6 +123,14 @@ class TrainingPage(Gtk.Box):
             self.stop_training()
 
     def start_training(self):
+        # Prüfen ob Detektor korrekt initialisiert ist
+        if self._detector.init_error is not None:
+            self._status_banner.set_title(
+                f"Fehler: MediaPipe-Modell nicht geladen \u2013 {self._detector.init_error}"
+            )
+            self._status_banner.set_revealed(True)
+            return
+
         self._apply_difficulty()
         # Test-Modus: Auslöse-Dauer überschreiben
         if self._window.pause_delay_override is not None:
@@ -140,6 +148,10 @@ class TrainingPage(Gtk.Box):
         self._polling_id = GLib.timeout_add(33, self._poll_frame)
 
     def stop_training(self):
+        # Guard gegen Doppelaufruf (z.B. durch session_failed + manueller Stop)
+        if self._session.state == SessionState.IDLE:
+            return
+
         if self._polling_id:
             GLib.source_remove(self._polling_id)
             self._polling_id = None

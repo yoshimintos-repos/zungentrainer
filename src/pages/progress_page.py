@@ -113,7 +113,8 @@ class ProgressPage(Gtk.Box):
             xp_in_level = level_sys.xp_in_current_level(profile.level, profile.total_xp)
             xp_needed = level_sys.xp_for_next_level(profile.level)
             self._xp_label.set_label(f"{xp_in_level} / {xp_needed} XP")
-            self._xp_bar.set_fraction(xp_in_level / xp_needed if xp_needed > 0 else 0)
+            fraction = xp_in_level / xp_needed if xp_needed > 0 else 0
+            self._xp_bar.set_fraction(max(0.0, min(1.0, fraction)))
 
         # Schwierigkeit
         diff = level_sys.get_difficulty(profile.level)

@@ -1,7 +1,18 @@
 """Datenklassen für Benutzerprofil, Level, Abzeichen und Kreaturen."""
 
+import dataclasses
 from dataclasses import dataclass, field
 from datetime import datetime
+
+
+def _filter_fields(cls, data: dict) -> dict:
+    """Gibt nur die bekannten Felder einer Dataclass aus einem dict zurück.
+
+    Unbekannte Schlüssel werden ignoriert, damit Schema-Downgrades oder
+    zukünftige Felder keine TypeError-Exceptions auslösen.
+    """
+    known = {f.name for f in dataclasses.fields(cls)}
+    return {k: v for k, v in data.items() if k in known}
 
 
 @dataclass
@@ -120,13 +131,14 @@ class UserProfile:
                 setattr(profile, key, data[key])
 
         profile.badges = [
-            Badge(**b) for b in data.get("badges", [])
+            Badge(**_filter_fields(Badge, b)) for b in data.get("badges", [])
         ]
         profile.creatures = [
-            Creature(**c) for c in data.get("creatures", [])
+            Creature(**_filter_fields(Creature, c)) for c in data.get("creatures", [])
         ]
         profile.sessions = [
-            SessionRecord(**s) for s in data.get("sessions", [])
+            SessionRecord(**_filter_fields(SessionRecord, s))
+            for s in data.get("sessions", [])
         ]
         if "settings" in data:
             profile.settings.update(data["settings"])

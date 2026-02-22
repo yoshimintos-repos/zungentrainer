@@ -136,17 +136,30 @@ class DetectorService:
                 )
             model_path = os.path.join(data_dir, "face_landmarker.task")
 
-        base_options = python.BaseOptions(model_asset_path=model_path)
-        options = vision.FaceLandmarkerOptions(
-            base_options=base_options,
-            running_mode=vision.RunningMode.VIDEO,
-            num_faces=1,
-            output_face_blendshapes=True,
-            min_face_detection_confidence=0.4,
-            min_face_presence_confidence=0.4,
-            min_tracking_confidence=0.4,
-        )
-        self._detector = vision.FaceLandmarker.create_from_options(options)
+        self._model_path = model_path
+        self._init_error: str | None = None
+
+        try:
+            if not os.path.exists(model_path):
+                raise FileNotFoundError(
+                    f"MediaPipe-Modell nicht gefunden: {model_path}"
+                )
+            base_options = python.BaseOptions(model_asset_path=model_path)
+            options = vision.FaceLandmarkerOptions(
+                base_options=base_options,
+                running_mode=vision.RunningMode.VIDEO,
+                num_faces=1,
+                output_face_blendshapes=True,
+                min_face_detection_confidence=0.4,
+                min_face_presence_confidence=0.4,
+                min_tracking_confidence=0.4,
+            )
+            self._detector = vision.FaceLandmarker.create_from_options(options)
+        except Exception as e:
+            self._detector = None
+            self._init_error = str(e)
+            print(f"DetectorService: Initialisierung fehlgeschlagen: {e}")
+
         self._frame_timestamp_ms = 0
 
         # Schwellwert-Multiplikator (wird vom Level-System gesetzt)
@@ -181,6 +194,11 @@ class DetectorService:
         self._score_filter.reset()
         self._frame_timestamp_ms = 0
 
+    @property
+    def init_error(self) -> str | None:
+        """Fehlermeldung wenn die Initialisierung fehlgeschlagen ist."""
+        return self._init_error
+
     def detect(self, frame: np.ndarray) -> dict:
         """Analysiert einen BGR-Frame.
 
@@ -193,6 +211,16 @@ class DetectorService:
                 - calibrated: bool
                 - debug: dict (Detail-Werte für UI-Anzeige)
         """
+        if self._detector is None:
+            return {
+                "face_detected": False,
+                "score": 0.0,
+                "smoothed_score": 0.0,
+                "tongue_out": False,
+                "calibrated": False,
+                "debug": {},
+            }
+
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
 
@@ -358,10 +386,14 @@ class DetectorService:
         if not self._calibration_buffer:
             return
 
-        # Median statt Mittelwert für Robustheit gegen Ausreißer
+        # Korrekter Median: bei gerader Anzahl Durchschnitt der mittleren zwei Werte
         scores = sorted(self._calibration_buffer)
-        mid = len(scores) // 2
-        self._baseline = scores[mid]
+        n = len(scores)
+        mid = n // 2
+        if n % 2 == 0:
+            self._baseline = (scores[mid - 1] + scores[mid]) / 2.0
+        else:
+            self._baseline = scores[mid]
         self._calibrated = True
 
     def cleanup(self):
