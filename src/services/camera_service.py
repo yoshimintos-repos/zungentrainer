@@ -33,6 +33,9 @@ class CameraService:
     def start(self):
         if self._running:
             return
+        # Sicherstellen, dass der alte Thread wirklich beendet ist
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=3.0)
         self._running = True
         self._thread = threading.Thread(target=self._capture_loop, daemon=True)
         self._thread.start()
@@ -40,7 +43,7 @@ class CameraService:
     def stop(self):
         self._running = False
         if self._thread:
-            self._thread.join(timeout=2.0)
+            self._thread.join(timeout=3.0)
             self._thread = None
         # _cap wird im Thread released; nur als Fallback hier
         with self._lock:
@@ -84,5 +87,6 @@ class CameraService:
                 self._frame = frame
 
         with self._lock:
-            self._cap.release()
-            self._cap = None
+            if self._cap is not None:
+                self._cap.release()
+                self._cap = None

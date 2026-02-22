@@ -112,6 +112,7 @@ class DetectorService:
     """Erkennt Zungenfehlstellung mittels Multi-Signal-Analyse.
 
     Die Erkennung kombiniert mehrere Signale zu einem Composite-Score:
+    - tongueOut Blendshape: Direktes ML-Signal für Zungenprotrusion (stärkstes Signal)
     - jawOpen Blendshape: Direktes ML-Signal für Kieferöffnung
     - Innere Lippenlücke: Geometrischer Abstand obere/untere Innenlippe
     - Mundöffnungs-Fläche: Fläche der inneren Lippenkontur
@@ -187,12 +188,16 @@ class DetectorService:
         self._sensitivity_multiplier = max(0.5, min(5.0, value))
 
     def reset_calibration(self):
-        """Setzt die Kalibrierung zurück (bei neuem Training-Start)."""
+        """Setzt die Kalibrierung zurück (bei neuem Training-Start).
+
+        WICHTIG: _frame_timestamp_ms wird NICHT zurückgesetzt!
+        MediaPipe VIDEO-Modus verlangt monoton steigende Timestamps
+        über die gesamte Lebensdauer des Detektors.
+        """
         self._calibration_buffer.clear()
         self._baseline = None
         self._calibrated = False
         self._score_filter.reset()
-        self._frame_timestamp_ms = 0
 
     @property
     def init_error(self) -> str | None:
@@ -342,6 +347,7 @@ class DetectorService:
             blendshapes.get("mouthStretchRight", 0.0)
         ) / 2.0
         mouth_shrug_lower = blendshapes.get("mouthShrugLower", 0.0)
+        tongue_out_bs = blendshapes.get("tongueOut", 0.0)
 
         return {
             "inner_gap": inner_gap,
@@ -355,12 +361,14 @@ class DetectorService:
             "mouth_upper_up": mouth_upper_up,
             "mouth_stretch": mouth_stretch,
             "mouth_shrug_lower": mouth_shrug_lower,
+            "tongue_out_bs": tongue_out_bs,
         }
 
     def _compute_score(self, signals: dict) -> float:
         """Berechnet den gewichteten Composite-Score.
 
         Gewichte basierend auf Signal-Zuverlässigkeit und Diskriminierungskraft:
+        - tongue_out_bs: Direktes ML-Signal für Zungenprotrusion (ARKit tongueOut)
         - inner_gap: Sehr zuverlässig, großer Unterschied Ruhe↔Zunge
         - jaw_open: Direkte ML-Schätzung der Kieferöffnung
         - norm_area: Fläche korreliert stark mit Mundöffnung
@@ -370,7 +378,8 @@ class DetectorService:
         - mouth_shrug_lower: Zunge drückt gegen Unterlippe
         """
         score = (
-            signals["inner_gap"] * 5.0
+            signals["tongue_out_bs"] * 8.0
+            + signals["inner_gap"] * 5.0
             + signals["jaw_open"] * 3.0
             + signals["norm_area"] * 25.0
             + signals["mouth_lower_down"] * 2.0
