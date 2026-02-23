@@ -4,10 +4,6 @@ import math
 from datetime import datetime
 from models.user_data import Creature
 
-import gi
-gi.require_version("Gtk", "4.0")
-from gi.repository import Gtk, Gdk
-
 
 # Kreatur-Definitionen: (id, name, beschreibung, freischalt-bedingung, farben)
 CREATURE_DEFS = [
@@ -304,6 +300,55 @@ def _draw_creature_details(cr, creature_id, x, y, size, ar, ag, ab):
         cr.arc(0, 0, size * 0.55, 0, 2 * math.pi)
         cr.restore()
         cr.fill()
+
+    elif creature_id == "koali":
+        # Große runde Ohren
+        cr.set_source_rgb(ar, ag, ab)
+        for dx in (-0.7, 0.7):
+            cr.arc(x + dx * size, y - size * 0.8, size * 0.3, 0, 2 * math.pi)
+            cr.fill()
+        # Kleine dunkle Ohrinnenkreise
+        cr.set_source_rgb(ar * 0.5, ag * 0.5, ab * 0.5)
+        for dx in (-0.7, 0.7):
+            cr.arc(x + dx * size, y - size * 0.8, size * 0.15, 0, 2 * math.pi)
+            cr.fill()
+        # Große Nase
+        cr.set_source_rgb(ar * 0.4, ag * 0.4, ab * 0.4)
+        cr.save()
+        cr.translate(x, y + size * 0.05)
+        cr.scale(1.4, 1.0)
+        cr.arc(0, 0, size * 0.22, 0, 2 * math.pi)
+        cr.restore()
+        cr.fill()
+
+    elif creature_id == "foxie":
+        # Spitze Ohren
+        cr.set_source_rgb(ar, ag, ab)
+        for dx in (-0.4, 0.4):
+            cr.move_to(x + dx * size * 0.6, y - size * 0.7)
+            cr.line_to(x + dx * size * 0.15, y - size * 1.45)
+            cr.line_to(x + dx * size * 1.1, y - size * 0.8)
+            cr.fill()
+        # Innere Ohrfarbe (dunkler)
+        cr.set_source_rgb(ar * 0.7, ag * 0.4, ab * 0.4)
+        for dx in (-0.4, 0.4):
+            cr.move_to(x + dx * size * 0.55, y - size * 0.75)
+            cr.line_to(x + dx * size * 0.2, y - size * 1.3)
+            cr.line_to(x + dx * size * 0.95, y - size * 0.85)
+            cr.fill()
+        # Buschiger Schwanz (rechts unten)
+        cr.set_source_rgb(ar, ag, ab)
+        cr.set_line_width(3)
+        for i in range(10):
+            angle = -0.3 + i * 0.15
+            r = size * 0.5 + i * size * 0.04
+            cx = x + size * 0.9 + math.cos(angle) * r * 0.5
+            cy = y + size * 0.5 + math.sin(angle) * r * 0.8
+            if i == 0:
+                cr.move_to(cx, cy)
+            else:
+                cr.line_to(cx, cy)
+        cr.stroke()
 
     elif creature_id == "einhorn":
         # Horn

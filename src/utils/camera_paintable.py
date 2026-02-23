@@ -22,6 +22,14 @@ class CameraPaintable(GObject.Object, Gdk.Paintable):
         self._width = 0
         self._height = 0
 
+    def clear(self):
+        """Löscht den aktuellen Frame (z.B. wenn Kamera gestoppt wird)."""
+        self._texture = None
+        self._width = 0
+        self._height = 0
+        self.invalidate_contents()
+        self.invalidate_size()
+
     def set_frame(self, frame: np.ndarray):
         """Setzt einen neuen Frame (BGR numpy array) und löst Neuzeichnung aus."""
         if frame is None:

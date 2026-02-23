@@ -158,6 +158,7 @@ class TrainingPage(Gtk.Box):
 
         result = self._session.stop()
         self._camera.stop()
+        self._paintable.clear()
         self._mpris.resume_paused()
 
         # Test-Modus nach Sitzung zurücksetzen
@@ -170,6 +171,9 @@ class TrainingPage(Gtk.Box):
         self._start_button.add_css_class("suggested-action")
         self._status_banner.set_revealed(False)
         self._status_label.set_label("Bereit zum Training")
+        self._score_label.set_label("")
+        self._time_label.set_label("00:00")
+        self._incident_label.set_label("Vorfälle: 0")
 
         # Sitzung auswerten
         if result["duration"] > 10:  # Mindestens 10 Sekunden
@@ -205,10 +209,13 @@ class TrainingPage(Gtk.Box):
             elif self._session.state == SessionState.WARNING:
                 self._status_label.set_label("Zunge rein!")
             elif self._session.state == SessionState.DETECTED:
-                remaining = self._session.remaining_resume
-                self._status_label.set_label(
-                    f"Medien pausiert... noch {int(remaining)}s"
-                )
+                if self._session.resume_delay > 0:
+                    remaining = self._session.remaining_resume
+                    self._status_label.set_label(
+                        f"Medien pausiert... noch {int(remaining)}s"
+                    )
+                else:
+                    self._status_label.set_label("Vorfall erkannt!")
             elif self._session.state == SessionState.COOLDOWN:
                 remaining = self._session.remaining_cooldown
                 self._status_label.set_label(
@@ -224,10 +231,13 @@ class TrainingPage(Gtk.Box):
             if self._session.state == SessionState.RUNNING:
                 self._status_label.set_label("Kein Gesicht erkannt")
             elif self._session.state == SessionState.DETECTED:
-                remaining = self._session.remaining_resume
-                self._status_label.set_label(
-                    f"Medien pausiert... noch {int(remaining)}s"
-                )
+                if self._session.resume_delay > 0:
+                    remaining = self._session.remaining_resume
+                    self._status_label.set_label(
+                        f"Medien pausiert... noch {int(remaining)}s"
+                    )
+                else:
+                    self._status_label.set_label("Vorfall erkannt!")
             elif self._session.state == SessionState.COOLDOWN:
                 remaining = self._session.remaining_cooldown
                 self._status_label.set_label(
