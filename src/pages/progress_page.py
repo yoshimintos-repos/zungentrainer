@@ -54,8 +54,16 @@ class ProgressPage(Gtk.Box):
         sessions_this_week = self._count_sessions_this_week()
         target = profile.trainings_per_week
 
-        progress_row = Adw.ActionRow(
-            title=f"{sessions_this_week}/{target} Trainings geschafft"
+        if sessions_this_week >= target:
+            week_title = f"Wochen-Ziel erreicht! ({sessions_this_week}/{target})"
+            week_icon = "object-select-symbolic"
+        else:
+            week_title = f"{sessions_this_week} von {target} Trainings diese Woche"
+            week_icon = "emblem-default-symbolic"
+
+        progress_row = Adw.ActionRow(title=week_title)
+        progress_row.add_prefix(
+            Gtk.Image.new_from_icon_name(week_icon)
         )
         week_group.add(progress_row)
 
@@ -83,15 +91,19 @@ class ProgressPage(Gtk.Box):
             )
             streak_group.add(streak_row)
 
-        # Meilensteine
-        if profile.milestones:
-            ms_group = Adw.PreferencesGroup(title="Meilensteine")
+        # Meilensteine — nur erreichte anzeigen (aus profile.milestones)
+        reached = [m for m in profile.milestones if m.reached_date]
+        if reached:
+            ms_group = Adw.PreferencesGroup(title="Erreichte Meilensteine")
             self._content.append(ms_group)
-            for ms in profile.milestones:
-                row = Adw.ActionRow(title=ms.name)
-                row.set_subtitle(ms.reached_date[:10] if ms.reached_date else "")
+            for ms in reached:
+                date_str = self._format_date(ms.reached_date)
+                row = Adw.ActionRow(
+                    title=ms.name,
+                    subtitle=f"Erreicht am {date_str}" if date_str else "",
+                )
                 row.add_prefix(
-                    Gtk.Image.new_from_icon_name("emblem-ok-symbolic")
+                    Gtk.Image.new_from_icon_name("object-select-symbolic")
                 )
                 ms_group.add(row)
 
@@ -165,6 +177,7 @@ class ProgressPage(Gtk.Box):
         trend_group.add(chart_box)
 
     def _count_sessions_this_week(self) -> int:
+        """Zaehlt nur Sessions der aktuellen Kalenderwoche (Mo 00:00 bis jetzt)."""
         now = datetime.now()
         week_start = now - timedelta(days=now.weekday())
         week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -177,3 +190,12 @@ class ProgressPage(Gtk.Box):
             except (ValueError, TypeError):
                 pass
         return count
+
+    @staticmethod
+    def _format_date(iso_date: str) -> str:
+        """Formatiert ISO-Datum zu deutschem Format 'TT.MM.JJJJ'."""
+        try:
+            dt = datetime.fromisoformat(iso_date)
+            return dt.strftime("%d.%m.%Y")
+        except (ValueError, TypeError):
+            return ""
