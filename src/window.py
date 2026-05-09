@@ -31,6 +31,10 @@ class ZungenTrainerWindow(Adw.ApplicationWindow):
         self._build_ui()
         self.connect("close-request", self._on_close)
 
+        # Hintergrund-Modus: Fenster-Sichtbarkeit tracken
+        self.connect("notify::is-active", self._on_active_changed)
+        self._window_visible = True
+
         # Onboarding beim ersten Start
         if not self.profile.onboarding_done:
             self._show_onboarding()
@@ -137,6 +141,18 @@ class ZungenTrainerWindow(Adw.ApplicationWindow):
     def refresh_pages(self):
         self.progress_page.refresh()
         self.settings_page.refresh()
+
+    def _on_active_changed(self, window, _param):
+        """Fenster wurde aktiviert/deaktiviert (Minimize, Workspace-Wechsel)."""
+        active = self.is_active()
+        if active and not self._window_visible:
+            # Fenster wieder sichtbar
+            self._window_visible = True
+            self.training_page.set_background_mode(False)
+        elif not active and self._window_visible:
+            # Fenster nicht mehr sichtbar
+            self._window_visible = False
+            self.training_page.set_background_mode(True)
 
     def _on_close(self, *args):
         self.training_page.cleanup()

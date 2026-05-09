@@ -7,7 +7,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 
-from gi.repository import Gtk, Adw, GLib
+from gi.repository import Gtk, Adw, GLib, Gio
 
 from services.camera_service import CameraService
 from services.detector_service import DetectorService
@@ -27,6 +27,8 @@ class TrainingPage(Gtk.Box):
         self._window = main_window
         self._polling_id = None
         self._paused_by_view_switch = False
+        self._background_mode = False
+        self._last_notification_time = 0.0
 
         profile = main_window.profile
         self._camera = CameraService(profile.settings.get("camera_index", 0))
@@ -212,6 +214,10 @@ class TrainingPage(Gtk.Box):
         self._status_label.set_label("Training laeuft")
         self._polling_id = GLib.timeout_add(33, self._poll_frame)
 
+    def set_background_mode(self, background: bool):
+        """Wechselt zwischen Vordergrund und Hintergrund."""
+        self._background_mode = background
+
     def _poll_frame(self) -> bool:
         # Guard: Stoppen wenn Polling deaktiviert wurde
         if self._polling_id is None:
@@ -221,7 +227,8 @@ class TrainingPage(Gtk.Box):
         if frame is None:
             return True
 
-        self._paintable.set_frame(frame)
+        if not self._background_mode:
+            self._paintable.set_frame(frame)
 
         try:
             detection = self._detector.detect(frame)
@@ -234,16 +241,19 @@ class TrainingPage(Gtk.Box):
 
             if cal_state == CalibrationState.BASELINE:
                 # Waehrend Kalibrierung: KEIN session.update()
-                self._status_label.set_label("Kalibrierung \u2013 Mund bitte geschlossen halten")
+                if not self._background_mode:
+                    self._status_label.set_label("Kalibrierung \u2013 Mund bitte geschlossen halten")
             elif cal_state == CalibrationState.TONGUE_PROMPT:
                 # Waehrend Kalibrierung: KEIN session.update()
-                self._status_label.set_label("Zeig mal kurz die Zunge!")
+                if not self._background_mode:
+                    self._status_label.set_label("Zeig mal kurz die Zunge!")
             elif cal_state == CalibrationState.DONE and not self._calibration_just_finished:
                 # Kalibrierung gerade abgeschlossen: Session JETZT starten
                 if self._session.state == SessionState.IDLE:
                     self._session.start()
                     self._calibration_just_finished = True
-                    self._status_label.set_label("Training laeuft")
+                    if not self._background_mode:
+                        self._status_label.set_label("Training laeuft")
                     import logging; logging.getLogger("zungentrainer.detektor").info("[Training] Session gestartet nach Kalibrierung")
                 # Kalibrierungsdaten speichern
                 if detection["calibrated"]:
@@ -256,26 +266,29 @@ class TrainingPage(Gtk.Box):
                 if self._session.state != SessionState.IDLE:
                     self._session.update(detection["tongue_out"])
 
-                if self._session.state == SessionState.RUNNING:
-                    self._status_label.set_label("Training laeuft")
-                elif self._session.state == SessionState.DETECTED:
-                    remaining = self._session.remaining_resume
-                    if remaining > 0:
-                        self._status_label.set_label(f"Film pausiert\u2026 noch {int(remaining)}\u202fs")
-                    else:
-                        self._status_label.set_label("Zunge rein!")
-                elif self._session.state == SessionState.COOLDOWN:
-                    remaining = self._session.remaining_cooldown
-                    self._status_label.set_label(f"Abklingzeit\u2026 {int(remaining)}\u202fs")
+                if not self._background_mode:
+                    if self._session.state == SessionState.RUNNING:
+                        self._status_label.set_label("Training laeuft")
+                    elif self._session.state == SessionState.DETECTED:
+                        remaining = self._session.remaining_resume
+                        if remaining > 0:
+                            self._status_label.set_label(f"Film pausiert\u2026 noch {int(remaining)}\u202fs")
+                        else:
+                            self._status_label.set_label("Zunge rein!")
+                    elif self._session.state == SessionState.COOLDOWN:
+                        remaining = self._session.remaining_cooldown
+                        self._status_label.set_label(f"Abklingzeit\u2026 {int(remaining)}\u202fs")
         else:
             if self._session.state != SessionState.IDLE:
                 self._session.update(False)
-            if self._session.state == SessionState.RUNNING:
-                self._status_label.set_label("Kein Gesicht erkannt")
+            if not self._background_mode:
+                if self._session.state == SessionState.RUNNING:
+                    self._status_label.set_label("Kein Gesicht erkannt")
 
-        d = self._session.session_duration
-        self._timer_label.set_label(f"{int(d) // 60:02d}:{int(d) % 60:02d}")
-        self._incident_label.set_label(f"{self._session.incident_count} Vorfaelle")
+        if not self._background_mode:
+            d = self._session.session_duration
+            self._timer_label.set_label(f"{int(d) // 60:02d}:{int(d) % 60:02d}")
+            self._incident_label.set_label(f"{self._session.incident_count} Vorfaelle")
 
         if self._session.session_failed:
             self._polling_id = None
@@ -290,9 +303,23 @@ class TrainingPage(Gtk.Box):
         self._banner.set_title("Zunge erkannt \u2014 Film pausiert")
         self._banner.set_revealed(True)
 
+        # Im Hintergrund: System-Benachrichtigung
+        if self._background_mode:
+            import time
+            now = time.monotonic()
+            if now - self._last_notification_time >= 10.0:  # Rate-Limit: 10s
+                self._last_notification_time = now
+                app = self._window.get_application()
+                notification = Gio.Notification.new("Zunge erkannt")
+                notification.set_body("Film pausiert")
+                app.send_notification("tongue-detected", notification)
+
     def _on_alarm_end(self):
         self._mpris.resume_paused()
         self._banner.set_revealed(False)
+        # Benachrichtigung entfernen
+        app = self._window.get_application()
+        app.withdraw_notification("tongue-detected")
 
     def _on_state_change(self, new_state):
         if new_state == SessionState.DETECTED:
