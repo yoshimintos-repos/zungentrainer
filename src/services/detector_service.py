@@ -43,6 +43,9 @@ class DetectorService:
         self._timestamp_ms = 0
         self._frame_count = 0
         self.sensitivity = 1.0
+        self._roi_save_interval = 5.0  # Sekunden
+        self._last_roi_save = 0.0
+        self._roi_save_dir = None
 
         self._init_mediapipe()
 
@@ -145,7 +148,34 @@ class DetectorService:
         result["tongue_out"] = smoothed > threshold and mouth_open
         result["confidence"] = min(smoothed / threshold, 1.0) if threshold > 0 else 0.0
 
+        # ROI-Datensammlung
+        if self._roi_save_dir:
+            now = time.monotonic()
+            if now - self._last_roi_save >= self._roi_save_interval:
+                self._last_roi_save = now
+                self._save_roi(roi, tongue_ratio)
+
         return result
+
+    def enable_roi_saving(self, save_dir: str):
+        """Aktiviert ROI-Datensammlung fuer spaeteres ML."""
+        self._roi_save_dir = save_dir
+        os.makedirs(save_dir, exist_ok=True)
+
+    def disable_roi_saving(self):
+        """Deaktiviert ROI-Datensammlung."""
+        self._roi_save_dir = None
+
+    def _save_roi(self, roi, score: float):
+        """Speichert einen Mund-ROI-Crop mit Score im Dateinamen."""
+        timestamp = int(time.time() * 1000)
+        score_str = f"{score:.3f}"
+        filename = f"roi_{timestamp}_s{score_str}.png"
+        path = os.path.join(self._roi_save_dir, filename)
+        try:
+            cv2.imwrite(path, roi)
+        except Exception:
+            pass  # Nicht-kritisch, still fehlschlagen
 
     def _extract_mouth_roi(self, landmarks, frame, h, w):
         outer_pts = np.array([

@@ -1,5 +1,6 @@
 """Trainings-Seite mit Kamera-Feed, OSD-Overlays und Session-Steuerung."""
 
+import os
 from datetime import datetime
 import gi
 
@@ -145,6 +146,12 @@ class TrainingPage(Gtk.Box):
 
         self._detector.reset()
         self._camera.start()
+
+        # ROI-Datensammlung aktivieren
+        data_home = os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share"))
+        roi_dir = os.path.join(data_home, "zungentrainer", "training_data")
+        self._detector.enable_roi_saving(roi_dir)
+
         self._session.start()
         self._paused_by_view_switch = False
 
@@ -167,6 +174,7 @@ class TrainingPage(Gtk.Box):
 
         result = self._session.stop()
         self._camera.stop()
+        self._detector.disable_roi_saving()
         self._mpris.resume_paused()
 
         self._start_button.set_visible(True)
