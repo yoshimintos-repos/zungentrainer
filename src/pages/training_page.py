@@ -68,6 +68,9 @@ class TrainingPage(Gtk.Box):
         self._picture.set_can_shrink(True)
         self._picture.set_content_fit(Gtk.ContentFit.CONTAIN)
         self._picture.set_vexpand(True)
+        self._picture.update_property(
+            [Gtk.AccessibleProperty.LABEL], ["Kamera-Vorschau"]
+        )
         overlay.set_child(self._picture)
 
         self._banner = Adw.Banner()
@@ -93,12 +96,14 @@ class TrainingPage(Gtk.Box):
         self._incident_label = Gtk.Label(label="0 Vorfaelle")
         self._incident_label.add_css_class("dim-label")
         self._incident_label.set_visible(False)
+        self._incident_label.update_property(
+            [Gtk.AccessibleProperty.LABEL], ["Anzahl Vorfaelle"]
+        )
         bottom_box.append(self._incident_label)
 
         self._stop_button = Gtk.Button(icon_name="media-playback-stop-symbolic")
         self._stop_button.set_tooltip_text("Training beenden")
         self._stop_button.add_css_class("circular")
-        self._stop_button.add_css_class("destructive-action")
         self._stop_button.set_visible(False)
         self._stop_button.connect("clicked", lambda _: self.stop_training())
         bottom_box.append(self._stop_button)
@@ -118,11 +123,13 @@ class TrainingPage(Gtk.Box):
         self._status_label.add_css_class("dim-label")
         self._status_label.set_margin_top(8)
         self._status_label.set_margin_bottom(8)
-        self.append(self._status_label)
+        status_clamp = Adw.Clamp(maximum_size=600)
+        status_clamp.set_child(self._status_label)
+        self.append(status_clamp)
 
     def start_training(self):
         if self._detector.init_error:
-            self._banner.set_title(f"Fehler: {self._detector.init_error}")
+            self._banner.set_title("Kamera konnte nicht gestartet werden")
             self._banner.set_revealed(True)
             return
 

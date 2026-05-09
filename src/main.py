@@ -41,6 +41,11 @@ class ZungenTrainerApp(Adw.Application):
         self.add_action(quit_action)
         self.set_accels_for_action("app.quit", ["<Control>q"])
 
+        # About-Dialog
+        about_action = Gio.SimpleAction.new("about", None)
+        about_action.connect("activate", lambda *_: self._show_about(win))
+        self.add_action(about_action)
+
         # Space: Training starten/stoppen
         toggle_action = Gio.SimpleAction.new("toggle-training", None)
         toggle_action.connect("activate", lambda *_: win.toggle_training())
@@ -52,6 +57,18 @@ class ZungenTrainerApp(Adw.Application):
         stop_action.connect("activate", lambda *_: win.training_page.stop_training())
         win.add_action(stop_action)
         self.set_accels_for_action("win.stop-training", ["Escape"])
+
+    def _show_about(self, win):
+        about = Adw.AboutDialog(
+            application_name="ZungenTrainer",
+            application_icon="de.yoshimintos.ZungenTrainer",
+            version="2.0",
+            developer_name="yoshimintos",
+            license_type=Gtk.License.GPL_3_0,
+            comments="Zungen-Haltungstrainer mit Webcam-Erkennung",
+            website="https://github.com/yoshimintos-repos/zungentrainer",
+        )
+        about.present(win)
 
 
 def main():

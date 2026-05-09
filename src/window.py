@@ -2,7 +2,7 @@
 import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Gtk, Adw
+from gi.repository import Gtk, Adw, Gio
 
 from pages.training_page import TrainingPage
 from pages.progress_page import ProgressPage
@@ -17,6 +17,7 @@ class ZungenTrainerWindow(Adw.ApplicationWindow):
         super().__init__(**kwargs)
         self.set_title("ZungenTrainer")
         self.set_default_size(480, 700)
+        self.set_size_request(360, 500)
 
         self.data_store = DataStore()
         self.profile = self.data_store.load()
@@ -33,6 +34,16 @@ class ZungenTrainerWindow(Adw.ApplicationWindow):
         self.set_content(toolbar_view)
 
         header = Adw.HeaderBar()
+
+        # Hamburger-Menue
+        menu_model = Gio.Menu()
+        menu_model.append("Tastenkuerzel", "win.show-help-overlay")
+        menu_model.append("Ueber ZungenTrainer", "app.about")
+        menu_button = Gtk.MenuButton(icon_name="open-menu-symbolic")
+        menu_button.set_menu_model(menu_model)
+        menu_button.set_tooltip_text("Hauptmenue")
+        header.pack_end(menu_button)
+
         toolbar_view.add_top_bar(header)
 
         self.view_stack = Adw.ViewStack()
