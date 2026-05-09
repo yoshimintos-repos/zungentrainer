@@ -26,13 +26,11 @@ class ZungenTrainerApp(Adw.Application):
         )
 
     def do_activate(self):
+        from window import ZungenTrainerWindow
+
         win = self.props.active_window
         if not win:
-            win = Adw.ApplicationWindow(application=self)
-            win.set_title("ZungenTrainer")
-            win.set_default_size(480, 700)
-            label = Gtk.Label(label="ZungenTrainer v2 — Platzhalter")
-            win.set_content(label)
+            win = ZungenTrainerWindow(application=self)
         win.present()
 
 
