@@ -80,7 +80,12 @@ class ZungenTrainerWindow(Adw.ApplicationWindow):
 
     def toggle_training(self):
         """Space-Taste: Training starten oder stoppen."""
-        pass  # Will be implemented when TrainingPage is real
+        from services.session_service import SessionState
+        if self.training_page._session.state == SessionState.IDLE:
+            self.view_stack.set_visible_child(self.training_page)
+            self.training_page.start_training()
+        else:
+            self.training_page.stop_training()
 
     def save_profile(self):
         try:
