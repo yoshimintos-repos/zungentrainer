@@ -218,7 +218,7 @@ class TrainingPage(Gtk.Box):
         try:
             detection = self._detector.detect(frame)
         except Exception as e:
-            print(f"Detektor-Fehler: {e}")
+            import logging; logging.getLogger("zungentrainer.detektor").error(f"Detektor-Fehler: {e}")
             return True
 
         if detection["face_detected"]:
@@ -236,7 +236,7 @@ class TrainingPage(Gtk.Box):
                     self._session.start()
                     self._calibration_just_finished = True
                     self._status_label.set_label("Training laeuft")
-                    print("[Training] Session gestartet nach Kalibrierung")
+                    import logging; logging.getLogger("zungentrainer.detektor").info("[Training] Session gestartet nach Kalibrierung")
                 # Kalibrierungsdaten speichern
                 if detection["calibrated"]:
                     ranges = self._detector._calibration.get_tongue_hsv_range()

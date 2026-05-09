@@ -2,8 +2,21 @@
 
 import os
 import time
+import logging
 import cv2
 import numpy as np
+
+# Log-Datei neben Terminal-Ausgabe
+_log = logging.getLogger("zungentrainer.detektor")
+if not _log.handlers:
+    _log.setLevel(logging.DEBUG)
+    _log.addHandler(logging.StreamHandler())  # Terminal
+    _data_home = os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share"))
+    _log_dir = os.path.join(_data_home, "zungentrainer")
+    os.makedirs(_log_dir, exist_ok=True)
+    _fh = logging.FileHandler(os.path.join(_log_dir, "detektor.log"), encoding="utf-8")
+    _fh.setLevel(logging.DEBUG)
+    _log.addHandler(_fh)
 
 try:
     import mediapipe as mp
@@ -126,7 +139,7 @@ class DetectorService:
 
             # State-Transition loggen
             if self._calibration.state != prev_cal_state:
-                print(f"[Detektor] Kalibrierung: {prev_cal_state.name} -> {self._calibration.state.name}")
+                _log.info(f"[Detektor] Kalibrierung: {prev_cal_state.name} -> {self._calibration.state.name}")
 
             if self._calibration.state == CalibrationState.DONE:
                 ranges = self._calibration.get_tongue_hsv_range()
@@ -136,7 +149,7 @@ class DetectorService:
                 # Grace-Period starten: nach Kalibrierung kurz keine Erkennung
                 self._grace_frames_remaining = GRACE_PERIOD_FRAMES
                 self._score_filter.reset()
-                print(f"[Detektor] Kalibrierung abgeschlossen, Grace-Period: {GRACE_PERIOD_FRAMES} Frames")
+                _log.info(f"[Detektor] Kalibrierung abgeschlossen, Grace-Period: {GRACE_PERIOD_FRAMES} Frames")
             return result
 
         if not result["calibrated"]:
@@ -146,7 +159,7 @@ class DetectorService:
         if self._grace_frames_remaining > 0:
             self._grace_frames_remaining -= 1
             if self._grace_frames_remaining % 10 == 0:
-                print(f"[Detektor] Grace-Period: noch {self._grace_frames_remaining} Frames")
+                _log.info(f"[Detektor] Grace-Period: noch {self._grace_frames_remaining} Frames")
             return result
 
         # Fix 3: Bei geschlossenem Mund HSV-Detektor ueberspringen
@@ -156,7 +169,7 @@ class DetectorService:
             result["smoothed_score"] = 0.0
             # Fix 4: Nur alle 30 Frames loggen bei geschlossenem Mund
             if self._frame_count % 30 == 0:
-                print(f"[Detektor] ZU score_reset")
+                _log.info(f"[Detektor] ZU score_reset")
             return result
 
         detection = self._hsv_detector.detect(roi, mouth_area)
@@ -178,7 +191,7 @@ class DetectorService:
         result["confidence"] = min(smoothed / threshold, 1.0) if threshold > 0 else 0.0
 
         # Fix 4: Besseres Logging
-        print(f"[Detektor] OFFEN ratio={tongue_ratio:.3f} smooth={smoothed:.3f} "
+        _log.info(f"[Detektor] OFFEN ratio={tongue_ratio:.3f} smooth={smoothed:.3f} "
               f"thr={threshold:.3f} → {'ZUNGE' if result['tongue_out'] else 'ok'}")
 
         # ROI-Datensammlung
@@ -245,7 +258,7 @@ class DetectorService:
         # Fix 5: Diagnostik-Log alle 30 Frames
         self._frame_count += 1
         if self._frame_count % 30 == 0:
-            print(f"[Detektor] face_h={face_h} inner_h={inner_h} "
+            _log.info(f"[Detektor] face_h={face_h} inner_h={inner_h} "
                   f"ratio={inner_h / face_h:.3f} mouth_area={mouth_area:.0f}")
 
         return roi, mouth_area, mouth_open
