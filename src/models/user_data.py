@@ -40,6 +40,9 @@ class UserProfile:
     calibration: dict = field(default_factory=dict)
     trainings_per_week: int = 2
     min_session_duration: int = 10
+    onboarding_done: bool = False
+    reminders_enabled: bool = True
+    last_week_checked: str = ""
 
     def to_dict(self) -> dict:
         from models.persistence import CURRENT_SCHEMA
@@ -66,6 +69,9 @@ class UserProfile:
             "calibration": self.calibration,
             "trainings_per_week": self.trainings_per_week,
             "min_session_duration": self.min_session_duration,
+            "onboarding_done": self.onboarding_done,
+            "reminders_enabled": self.reminders_enabled,
+            "last_week_checked": self.last_week_checked,
         }
 
     @classmethod
@@ -76,6 +82,7 @@ class UserProfile:
             "total_training_time", "total_incidents", "weekly_streak",
             "best_weekly_streak", "last_session_date",
             "trainings_per_week", "min_session_duration",
+            "onboarding_done", "reminders_enabled", "last_week_checked",
         )
         for key in simple_fields:
             if key in data:

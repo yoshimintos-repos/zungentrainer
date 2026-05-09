@@ -312,6 +312,9 @@ class TrainingPage(Gtk.Box):
         if new_milestones:
             self._window.save_profile()
 
+        # Streak aktualisieren
+        self._window.streak_system.update_streak(profile)
+
         toast = Adw.Toast(title=f"Training beendet \u2014 {result['incidents']} Vorfaelle")
         toast.set_timeout(3)
         self._toast_overlay.add_toast(toast)

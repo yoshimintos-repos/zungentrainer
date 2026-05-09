@@ -9,7 +9,7 @@ from models.user_data import UserProfile
 
 # Aktuelle Schema-Version. Bei jeder strukturellen Änderung am Profil-Format
 # hochzählen und eine passende Migrationsfunktion hinzufügen.
-CURRENT_SCHEMA = 1
+CURRENT_SCHEMA = 2
 
 
 def _migrate_v0_to_v1(data: dict) -> dict:
@@ -19,9 +19,18 @@ def _migrate_v0_to_v1(data: dict) -> dict:
     return data
 
 
+def _migrate_v1_to_v2(data: dict) -> dict:
+    """Migration v1 → v2: Neue Felder fuer Onboarding und Streak."""
+    data.setdefault("onboarding_done", False)
+    data.setdefault("reminders_enabled", True)
+    data.setdefault("last_week_checked", "")
+    return data
+
+
 # Migrationskette: (Quell-Version, Funktion)
 _MIGRATIONS = [
     (0, _migrate_v0_to_v1),
+    (1, _migrate_v1_to_v2),
 ]
 
 
