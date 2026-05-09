@@ -39,7 +39,7 @@ INNER_LIP_INDICES = [
     415, 310, 311, 312, 13, 82, 81, 80, 191,
 ]
 
-TONGUE_RATIO_THRESHOLD = 0.15
+TONGUE_RATIO_THRESHOLD = 0.08
 TONGUE_TIP_THRESHOLD = 0.6
 MOUTH_OPEN_THRESHOLD = 0.04
 GRACE_PERIOD_FRAMES = 30  # ~1 Sekunde nach Kalibrierung keine Erkennung
@@ -172,34 +172,46 @@ class DetectorService:
                 _log.info(f"[Detektor] ZU score_reset")
             return result
 
-        detection = self._hsv_detector.detect(roi, mouth_area)
-        tongue_ratio = detection["tongue_ratio"]
-        tongue_tip_y = detection["tongue_tip_y"]
-        result["tongue_ratio"] = tongue_ratio
-        result["debug_mask"] = detection["mask"]
+        # HSV auf dem fokussierten Lippenspalt-ROI
+        lip_gap_roi = self._extract_lip_gap_roi(landmarks, frame, h, w)
+        if lip_gap_roi is not None and lip_gap_roi.size > 0:
+            gap_detection = self._hsv_detector.detect(lip_gap_roi, lip_gap_roi.shape[0] * lip_gap_roi.shape[1])
+            gap_ratio = gap_detection["tongue_ratio"]
+            result["debug_mask"] = gap_detection["mask"]
+        else:
+            gap_ratio = 0.0
 
-        raw_score = tongue_ratio
-        if tongue_tip_y > TONGUE_TIP_THRESHOLD:
-            raw_score *= 1.5
+        result["tongue_ratio"] = gap_ratio
+
+        # Geometrisches Signal: Lip-Bulge
+        lip_bulge = self._compute_lip_bulge(landmarks, h)
+        bulge_confirmed = lip_bulge > 0.1
+
+        raw_score = gap_ratio
+        # Bonus wenn Geometrie bestaetigt
+        if bulge_confirmed:
+            raw_score *= 1.3
 
         t = self._timestamp_ms / 1000.0
         smoothed = self._score_filter.filter(raw_score, t)
         result["smoothed_score"] = smoothed
 
+        # Effektiver Threshold: halbiert wenn Lip-Bulge bestaetigt
         threshold = TONGUE_RATIO_THRESHOLD / self.sensitivity
-        result["tongue_out"] = smoothed > threshold
-        result["confidence"] = min(smoothed / threshold, 1.0) if threshold > 0 else 0.0
+        effective_threshold = threshold * (0.5 if bulge_confirmed else 1.0)
 
-        # Fix 4: Besseres Logging
-        _log.info(f"[Detektor] OFFEN ratio={tongue_ratio:.3f} smooth={smoothed:.3f} "
-              f"thr={threshold:.3f} → {'ZUNGE' if result['tongue_out'] else 'ok'}")
+        result["tongue_out"] = smoothed > effective_threshold
+        result["confidence"] = min(smoothed / effective_threshold, 1.0) if effective_threshold > 0 else 0.0
+
+        _log.info(f"[Detektor] OFFEN gap={gap_ratio:.3f} bulge={lip_bulge:.3f}{'*' if bulge_confirmed else ''} "
+              f"smooth={smoothed:.3f} thr={effective_threshold:.3f} → {'ZUNGE' if result['tongue_out'] else 'ok'}")
 
         # ROI-Datensammlung
         if self._roi_save_dir:
             now = time.monotonic()
             if now - self._last_roi_save >= self._roi_save_interval:
                 self._last_roi_save = now
-                self._save_roi(roi, tongue_ratio)
+                self._save_roi(roi, gap_ratio)
 
         return result
 
@@ -262,6 +274,45 @@ class DetectorService:
                   f"ratio={inner_h / face_h:.3f} mouth_area={mouth_area:.0f}")
 
         return roi, mouth_area, mouth_open
+
+    def _extract_lip_gap_roi(self, landmarks, frame, h, w):
+        """Extrahiert nur den schmalen Bereich zwischen den inneren Lippen."""
+        upper_center_y = int(landmarks[13].y * h)
+        lower_center_y = int(landmarks[14].y * h)
+
+        # Links-Rechts-Ausdehnung der inneren Lippen
+        left_x = int(landmarks[78].x * w)
+        right_x = int(landmarks[308].x * w)
+
+        # Kleines Padding
+        pad = max(3, int((lower_center_y - upper_center_y) * 0.3))
+
+        y_min = max(0, upper_center_y - pad)
+        y_max = min(h, lower_center_y + pad)
+        x_min = max(0, left_x)
+        x_max = min(w, right_x)
+
+        if y_max <= y_min or x_max <= x_min:
+            return None
+
+        return frame[y_min:y_max, x_min:x_max]
+
+    def _compute_lip_bulge(self, landmarks, h) -> float:
+        """Berechnet wie stark die Lippenmitte weiter offen ist als die Seiten.
+
+        Positiver Wert = Mitte weiter offen (Zunge drueckt Lippen auseinander).
+        """
+        # Vertikaler Spalt in der Mitte
+        center_gap = abs(landmarks[14].y - landmarks[13].y) * h
+
+        # Vertikaler Spalt an den Seiten (Durchschnitt links + rechts)
+        left_gap = abs(landmarks[87].y - landmarks[82].y) * h
+        right_gap = abs(landmarks[317].y - landmarks[312].y) * h
+        side_gap = (left_gap + right_gap) / 2
+
+        # Tongue-Bulge: Mitte weiter offen als Seiten
+        lip_bulge = (center_gap - side_gap) / max(1.0, center_gap)
+        return lip_bulge
 
     def start_calibration(self):
         self._calibration.start()
