@@ -15,7 +15,7 @@ class CalibrationState(Enum):
     DONE = auto()
 
 class Calibration:
-    def __init__(self, baseline_frames: int = 60, tongue_frames: int = 60):
+    def __init__(self, baseline_frames: int = 60, tongue_frames: int = 30):
         self._baseline_target = baseline_frames
         self._tongue_target = tongue_frames
         self.state = CalibrationState.IDLE
@@ -66,7 +66,7 @@ class Calibration:
         all_pixels = np.concatenate([s.reshape(-1, 3) for s in self._tongue_samples], axis=0)
         median = np.median(all_pixels, axis=0)
         mad = np.median(np.abs(all_pixels - median), axis=0)
-        spread = np.maximum(mad * 2, np.array([8, 30, 30]))
+        spread = np.maximum(mad * 2, np.array([12, 40, 40]))
         self._tongue_hsv_lower = np.clip(median - spread, 0, 255).astype(np.uint8)
         self._tongue_hsv_upper = np.clip(median + spread, 0, 255).astype(np.uint8)
 

@@ -41,7 +41,7 @@ INNER_LIP_INDICES = [
 
 TONGUE_RATIO_THRESHOLD = 0.08
 TONGUE_TIP_THRESHOLD = 0.6
-MOUTH_OPEN_THRESHOLD = 0.04
+MOUTH_OPEN_THRESHOLD = 0.025
 GRACE_PERIOD_FRAMES = 30  # ~1 Sekunde nach Kalibrierung keine Erkennung
 MIN_MOUTH_AREA = 100  # Pixel² — unter diesem Wert ist der Mund geschlossen
 
@@ -54,7 +54,7 @@ class DetectorService:
         self._landmarker = None
         self._hsv_detector = HsvDetector()
         self._calibration = Calibration()
-        self._score_filter = OneEuroFilter(min_cutoff=1.0, beta=0.007)
+        self._score_filter = OneEuroFilter(min_cutoff=1.0, beta=0.02)
         self._timestamp_ms = 0
         self._frame_count = 0
         self._grace_frames_remaining = 0

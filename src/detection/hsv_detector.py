@@ -11,7 +11,8 @@ class HsvDetector:
         self._tongue_lower: np.ndarray | None = None
         self._tongue_upper: np.ndarray | None = None
         self._clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(4, 4))
-        self._kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        self._kernel_large = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        self._kernel_small = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
 
     def set_tongue_range(self, lower: list[int], upper: list[int]):
         self._tongue_lower = np.array(lower, dtype=np.uint8)
@@ -44,11 +45,20 @@ class HsvDetector:
         else:
             mask = cv2.inRange(hsv, self._tongue_lower, self._tongue_upper)
 
-        mask = cv2.erode(mask, self._kernel, iterations=1)
-        mask = cv2.dilate(mask, self._kernel, iterations=2)
+        # Adaptiver Kernel: klein fuer kleine ROIs (Lippenspalt), gross fuer grosse
+        roi_h = bgr_roi.shape[0]
+        kernel = self._kernel_small if roi_h < 50 else self._kernel_large
+
+        mask = cv2.erode(mask, kernel, iterations=1)
+        mask = cv2.dilate(mask, kernel, iterations=2)
 
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if not contours:
+            # Fallback: diffuse Pixel zaehlen die keine Kontur bilden
+            white_pixels = cv2.countNonZero(mask)
+            if white_pixels > 0:
+                pixel_ratio = min(1.0, white_pixels / mouth_area)
+                return {"tongue_ratio": float(pixel_ratio), "tongue_tip_y": 0.0, "mask": mask}
             return {"tongue_ratio": 0.0, "tongue_tip_y": 0.0, "mask": mask}
 
         largest = max(contours, key=cv2.contourArea)
