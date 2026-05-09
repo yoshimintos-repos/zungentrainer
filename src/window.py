@@ -31,6 +31,10 @@ class ZungenTrainerWindow(Adw.ApplicationWindow):
         self._build_ui()
         self.connect("close-request", self._on_close)
 
+        # Onboarding beim ersten Start
+        if not self.profile.onboarding_done:
+            self._show_onboarding()
+
     def show_toast(self, title: str, timeout: int = 3):
         """Zeigt einen Toast auf Window-Ebene (sichtbar auf jeder Page)."""
         toast = Adw.Toast(title=title)
@@ -41,7 +45,8 @@ class ZungenTrainerWindow(Adw.ApplicationWindow):
         self._toast_overlay = Adw.ToastOverlay()
         self.set_content(self._toast_overlay)
 
-        toolbar_view = Adw.ToolbarView()
+        self._toolbar_view = Adw.ToolbarView()
+        toolbar_view = self._toolbar_view
         self._toast_overlay.set_child(toolbar_view)
 
         header = Adw.HeaderBar()
@@ -93,6 +98,19 @@ class ZungenTrainerWindow(Adw.ApplicationWindow):
             "notify::visible-child",
             self._on_visible_child_changed,
         )
+
+    def _show_onboarding(self):
+        """Zeigt Onboarding statt ViewStack."""
+        from pages.onboarding_page import OnboardingPage
+        self._onboarding = OnboardingPage(self)
+        # ViewStack verstecken, Onboarding zeigen
+        self._toast_overlay.set_child(self._onboarding)
+
+    def finish_onboarding(self):
+        """Wechselt von Onboarding zum normalen ViewStack."""
+        self._toast_overlay.set_child(self._toolbar_view)
+        self._onboarding = None
+        self.show_toast("Willkommen, " + self.profile.name + "!")
 
     def _on_visible_child_changed(self, stack, _param):
         visible = stack.get_visible_child()
