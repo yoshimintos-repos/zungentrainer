@@ -29,15 +29,23 @@ class ZungenTrainerWindow(Adw.ApplicationWindow):
         self._build_ui()
         self.connect("close-request", self._on_close)
 
+    def show_toast(self, title: str, timeout: int = 3):
+        """Zeigt einen Toast auf Window-Ebene (sichtbar auf jeder Page)."""
+        toast = Adw.Toast(title=title)
+        toast.set_timeout(timeout)
+        self._toast_overlay.add_toast(toast)
+
     def _build_ui(self):
+        self._toast_overlay = Adw.ToastOverlay()
+        self.set_content(self._toast_overlay)
+
         toolbar_view = Adw.ToolbarView()
-        self.set_content(toolbar_view)
+        self._toast_overlay.set_child(toolbar_view)
 
         header = Adw.HeaderBar()
 
         # Hamburger-Menue
         menu_model = Gio.Menu()
-        menu_model.append("Tastenkuerzel", "win.show-help-overlay")
         menu_model.append("Ueber ZungenTrainer", "app.about")
         menu_button = Gtk.MenuButton(icon_name="open-menu-symbolic")
         menu_button.set_menu_model(menu_model)

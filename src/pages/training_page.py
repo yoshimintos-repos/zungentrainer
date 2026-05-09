@@ -86,6 +86,9 @@ class TrainingPage(Gtk.Box):
         self._timer_label.set_margin_end(12)
         self._timer_label.set_visible(False)
         self._timer_label.set_tooltip_text("Trainingszeit")
+        self._timer_label.update_property(
+            [Gtk.AccessibleProperty.LABEL], ["Trainingszeit"]
+        )
         overlay.add_overlay(self._timer_label)
 
         bottom_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)

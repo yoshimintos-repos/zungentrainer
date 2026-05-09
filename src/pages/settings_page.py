@@ -110,7 +110,13 @@ class SettingsPage(Adw.PreferencesPage):
         self.add(reset_group)
 
         reset_row, reset_target = _make_button_row("Fortschritt zuruecksetzen")
-        reset_row.add_css_class("destructive-action")
+        if _HAS_BUTTON_ROW:
+            reset_row.add_css_class("destructive-action")
+        else:
+            # Beim ActionRow-Fallback: Klasse auf den Button, nicht die Row
+            for child in [reset_row.get_first_child()]:
+                pass  # ActionRow hat activatable_widget
+            reset_target.add_css_class("destructive-action")
         reset_target.connect("activated", self._on_reset)
         reset_group.add(reset_row)
 
@@ -133,8 +139,7 @@ class SettingsPage(Adw.PreferencesPage):
     def _on_recalibrate(self, *args):
         self._window.profile.calibration = {}
         self._window.save_profile()
-        toast = Adw.Toast(title="Kalibrierung zurueckgesetzt")
-        self._window.training_page._toast_overlay.add_toast(toast)
+        self._window.show_toast("Kalibrierung zurueckgesetzt")
 
     def _on_reset(self, *args):
         dialog = Adw.AlertDialog()
