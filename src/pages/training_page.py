@@ -284,6 +284,16 @@ class TrainingPage(Gtk.Box):
         self._window.save_profile()
         self._window.refresh_pages()
 
+        # Meilensteine pruefen
+        new_milestones = self._window.milestone_system.check_milestones(profile)
+        for ms in new_milestones:
+            profile.milestones.append(ms)
+            toast = Adw.Toast(title=f"Meilenstein: {ms.name}")
+            toast.set_timeout(5)
+            self._toast_overlay.add_toast(toast)
+        if new_milestones:
+            self._window.save_profile()
+
         toast = Adw.Toast(title=f"Training beendet \u2014 {result['incidents']} Vorfaelle")
         toast.set_timeout(3)
         self._toast_overlay.add_toast(toast)

@@ -9,6 +9,7 @@ from pages.progress_page import ProgressPage
 from pages.settings_page import SettingsPage
 from models.persistence import DataStore
 from systems.adaptive_difficulty import AdaptiveDifficulty
+from systems.milestone_system import MilestoneSystem
 
 
 class ZungenTrainerWindow(Adw.ApplicationWindow):
@@ -22,6 +23,7 @@ class ZungenTrainerWindow(Adw.ApplicationWindow):
         self.adaptive_difficulty = AdaptiveDifficulty.from_dict(
             self.profile.difficulty_params
         )
+        self.milestone_system = MilestoneSystem()
 
         self._build_ui()
         self.connect("close-request", self._on_close)
