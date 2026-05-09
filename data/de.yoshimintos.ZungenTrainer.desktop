@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=ZungenTrainer
+GenericName=Zungen-Haltungstrainer
+Comment=Trainiert die Zungenruhelage mit Webcam-Erkennung
+Exec=zungentrainer
+Icon=de.yoshimintos.ZungenTrainer
+Terminal=false
+Type=Application
+Categories=Education;
+Keywords=Zunge;Trainer;Logopädie;Kieferorthopädie;Training;
+StartupNotify=true

@@ -7,3 +7,4 @@ build/
 *.flatpak
 data/face_landmarker.task
 .repo/
+flatpak/pip-cache/
