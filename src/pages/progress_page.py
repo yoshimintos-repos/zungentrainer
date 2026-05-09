@@ -70,6 +70,9 @@ class ProgressPage(Gtk.Box):
         time_row = Adw.ActionRow(title=f"{total_min} Minuten trainiert (gesamt)")
         week_group.add(time_row)
 
+        # Trend-Diagramm
+        self._build_trend_chart()
+
         # Streak
         if profile.weekly_streak > 0:
             streak_group = Adw.PreferencesGroup(title="Wochen-Streak")
@@ -91,6 +94,75 @@ class ProgressPage(Gtk.Box):
                     Gtk.Image.new_from_icon_name("emblem-ok-symbolic")
                 )
                 ms_group.add(row)
+
+    def _build_trend_chart(self):
+        """Erstellt ein 4-Wochen-Balkendiagramm."""
+        now = datetime.now()
+        weeks = []
+        for i in range(3, -1, -1):
+            week_start = (now - timedelta(weeks=i, days=now.weekday())).replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
+            count = 0
+            for s in self._window.profile.sessions:
+                try:
+                    ts = datetime.fromisoformat(s.timestamp)
+                    if week_start <= ts < week_start + timedelta(weeks=1):
+                        count += 1
+                except (ValueError, TypeError):
+                    pass
+            weeks.append({"label": f"KW\u00a0{week_start.isocalendar()[1]}", "count": count})
+
+        max_count = max((w["count"] for w in weeks), default=1) or 1
+
+        trend_group = Adw.PreferencesGroup(title="Trend (4\u202fWochen)")
+        self._content.append(trend_group)
+
+        chart_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        chart_box.set_halign(Gtk.Align.CENTER)
+        chart_box.set_margin_top(12)
+        chart_box.set_margin_bottom(12)
+
+        for w in weeks:
+            col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+            col.set_halign(Gtk.Align.CENTER)
+
+            # Balken
+            bar_height = max(4, int(80 * w["count"] / max_count))
+            bar = Gtk.Box()
+            bar.set_size_request(40, bar_height)
+            bar.add_css_class("accent")
+            bar.set_valign(Gtk.Align.END)
+
+            spacer = Gtk.Box()
+            spacer.set_size_request(40, 80 - bar_height)
+
+            bar_container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+            bar_container.append(spacer)
+            bar_container.append(bar)
+            col.append(bar_container)
+
+            # Anzahl
+            count_label = Gtk.Label(label=str(w["count"]))
+            count_label.add_css_class("caption")
+            col.append(count_label)
+
+            # Wochenlabel
+            week_label = Gtk.Label(label=w["label"])
+            week_label.add_css_class("caption")
+            week_label.add_css_class("dim-label")
+            col.append(week_label)
+
+            chart_box.append(col)
+
+        # Accessible: Trend als Text
+        trend_text = ", ".join(f"{w['label']}: {w['count']}" for w in weeks)
+        chart_box.update_property(
+            [Gtk.AccessibleProperty.LABEL],
+            [f"Trainings-Trend: {trend_text}"]
+        )
+
+        trend_group.add(chart_box)
 
     def _count_sessions_this_week(self) -> int:
         now = datetime.now()
