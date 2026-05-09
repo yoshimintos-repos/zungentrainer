@@ -92,17 +92,19 @@ class SettingsPage(Adw.PreferencesPage):
         recal_target.connect("activated", self._on_recalibrate)
         cal_group.add(recal_row)
 
-        # --- Eltern-Bereich (Platzhalter — Polkit kommt in Phase 3) ---
+        # --- Eltern-Bereich (Polkit-geschuetzt) ---
         parent_group = Adw.PreferencesGroup(title="Eltern-Bereich")
-        parent_group.set_description("Erweiterte Einstellungen (Phase 3: Polkit)")
+        parent_group.set_description(
+            "Trainingsplan, Erinnerungen und Schwierigkeit (Passwort erforderlich)"
+        )
         self.add(parent_group)
 
-        parent_row, _ = _make_button_row(
+        parent_row, parent_target = _make_button_row(
             "Eltern-Bereich oeffnen",
             start_icon="system-lock-screen-symbolic",
             end_icon="go-next-symbolic" if _HAS_BUTTON_ROW else None,
         )
-        parent_row.set_sensitive(False)
+        parent_target.connect("activated", self._on_parent_area)
         parent_group.add(parent_row)
 
         # --- Daten zuruecksetzen ---
@@ -140,6 +142,39 @@ class SettingsPage(Adw.PreferencesPage):
         self._window.profile.calibration = {}
         self._window.save_profile()
         self._window.show_toast("Kalibrierung zurueckgesetzt")
+
+    def _on_parent_area(self, *args):
+        """Oeffnet Eltern-Bereich nach Polkit-Authentifizierung."""
+        from services.polkit_service import PolkitService
+        polkit = PolkitService()
+        polkit.check_authorization(self._on_polkit_result)
+
+    def _on_polkit_result(self, authorized):
+        from gi.repository import GLib
+        if authorized:
+            GLib.idle_add(self._show_parent_area)
+        else:
+            GLib.idle_add(self._show_auth_failed)
+
+    def _show_parent_area(self):
+        from pages.parent_settings_page import ParentSettingsPage
+        parent_page = ParentSettingsPage(self._window)
+
+        dialog = Adw.Dialog()
+        dialog.set_title("Eltern-Bereich")
+        dialog.set_content_width(500)
+        dialog.set_content_height(600)
+
+        toolbar = Adw.ToolbarView()
+        header = Adw.HeaderBar()
+        toolbar.add_top_bar(header)
+        toolbar.set_content(parent_page)
+        dialog.set_child(toolbar)
+
+        dialog.present(self._window)
+
+    def _show_auth_failed(self):
+        self._window.show_toast("Zugang abgebrochen")
 
     def _on_reset(self, *args):
         dialog = Adw.AlertDialog()

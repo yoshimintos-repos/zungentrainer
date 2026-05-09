@@ -49,7 +49,8 @@
                 "install -Dm644 data/de.yoshimintos.ZungenTrainer.desktop /app/share/applications/de.yoshimintos.ZungenTrainer.desktop",
                 "install -Dm644 data/de.yoshimintos.ZungenTrainer.metainfo.xml /app/share/metainfo/de.yoshimintos.ZungenTrainer.metainfo.xml",
                 "install -Dm644 data/icons/hicolor/scalable/apps/de.yoshimintos.ZungenTrainer.svg /app/share/icons/hicolor/scalable/apps/de.yoshimintos.ZungenTrainer.svg",
-                "install -Dm644 data/icons/hicolor/symbolic/apps/de.yoshimintos.ZungenTrainer-symbolic.svg /app/share/icons/hicolor/symbolic/apps/de.yoshimintos.ZungenTrainer-symbolic.svg"
+                "install -Dm644 data/icons/hicolor/symbolic/apps/de.yoshimintos.ZungenTrainer-symbolic.svg /app/share/icons/hicolor/symbolic/apps/de.yoshimintos.ZungenTrainer-symbolic.svg",
+                "install -Dm644 flatpak/de.yoshimintos.ZungenTrainer.policy /app/share/polkit-1/actions/de.yoshimintos.ZungenTrainer.policy"
             ],
             "sources": [
                 {
