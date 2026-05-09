@@ -53,7 +53,7 @@ class HsvDetector:
 
         largest = max(contours, key=cv2.contourArea)
         tongue_area = cv2.contourArea(largest)
-        tongue_ratio = tongue_area / mouth_area
+        tongue_ratio = min(1.0, tongue_area / mouth_area)
 
         h = bgr_roi.shape[0]
         bottommost = max(largest, key=lambda p: p[0][1])

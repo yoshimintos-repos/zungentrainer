@@ -30,6 +30,7 @@ TONGUE_RATIO_THRESHOLD = 0.15
 TONGUE_TIP_THRESHOLD = 0.6
 MOUTH_OPEN_THRESHOLD = 0.04
 GRACE_PERIOD_FRAMES = 30  # ~1 Sekunde nach Kalibrierung keine Erkennung
+MIN_MOUTH_AREA = 100  # Pixel² — unter diesem Wert ist der Mund geschlossen
 
 
 class DetectorService:
@@ -148,6 +149,16 @@ class DetectorService:
                 print(f"[Detektor] Grace-Period: noch {self._grace_frames_remaining} Frames")
             return result
 
+        # Fix 3: Bei geschlossenem Mund HSV-Detektor ueberspringen
+        if not mouth_open:
+            t = self._timestamp_ms / 1000.0
+            self._score_filter.filter(0.0, t)
+            result["smoothed_score"] = 0.0
+            # Fix 4: Nur alle 30 Frames loggen bei geschlossenem Mund
+            if self._frame_count % 30 == 0:
+                print(f"[Detektor] ZU score_reset")
+            return result
+
         detection = self._hsv_detector.detect(roi, mouth_area)
         tongue_ratio = detection["tongue_ratio"]
         tongue_tip_y = detection["tongue_tip_y"]
@@ -163,13 +174,12 @@ class DetectorService:
         result["smoothed_score"] = smoothed
 
         threshold = TONGUE_RATIO_THRESHOLD / self.sensitivity
-        result["tongue_out"] = smoothed > threshold and mouth_open
+        result["tongue_out"] = smoothed > threshold
         result["confidence"] = min(smoothed / threshold, 1.0) if threshold > 0 else 0.0
 
-        # Debug-Logging: bei jedem Frame mit erkanntem Gesicht
-        print(f"[Detektor] ratio={tongue_ratio:.3f} smoothed={smoothed:.3f} "
-              f"mouth_open={mouth_open} threshold={threshold:.3f} "
-              f"tongue_out={result['tongue_out']}")
+        # Fix 4: Besseres Logging
+        print(f"[Detektor] OFFEN ratio={tongue_ratio:.3f} smooth={smoothed:.3f} "
+              f"thr={threshold:.3f} → {'ZUNGE' if result['tongue_out'] else 'ok'}")
 
         # ROI-Datensammlung
         if self._roi_save_dir:
@@ -226,6 +236,17 @@ class DetectorService:
         face_h = max(1, int(landmarks[152].y * h) - int(landmarks[10].y * h))
         inner_h = inner_pts[:, 1].max() - inner_pts[:, 1].min()
         mouth_open = (inner_h / face_h) > MOUTH_OPEN_THRESHOLD
+
+        # Fix 1: Mindestflaeche — bei zu kleiner Mundoeffnung gilt Mund als geschlossen
+        if mouth_area < MIN_MOUTH_AREA:
+            mouth_open = False
+            mouth_area = 0
+
+        # Fix 5: Diagnostik-Log alle 30 Frames
+        self._frame_count += 1
+        if self._frame_count % 30 == 0:
+            print(f"[Detektor] face_h={face_h} inner_h={inner_h} "
+                  f"ratio={inner_h / face_h:.3f} mouth_area={mouth_area:.0f}")
 
         return roi, mouth_area, mouth_open
 
