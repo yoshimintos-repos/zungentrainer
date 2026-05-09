@@ -152,8 +152,10 @@ class TrainingPage(Gtk.Box):
         roi_dir = os.path.join(data_home, "zungentrainer", "training_data")
         self._detector.enable_roi_saving(roi_dir)
 
-        self._session.start()
+        # Session wird NICHT hier gestartet, sondern erst wenn Kalibrierung
+        # abgeschlossen ist (in _poll_frame). Verhindert Alarm waehrend Kalibrierung.
         self._paused_by_view_switch = False
+        self._calibration_just_finished = False
 
         self._start_button.set_visible(False)
         self._timer_label.set_visible(True)
@@ -165,7 +167,7 @@ class TrainingPage(Gtk.Box):
         self._polling_id = GLib.timeout_add(33, self._poll_frame)
 
     def stop_training(self):
-        if self._session.state == SessionState.IDLE:
+        if self._session.state == SessionState.IDLE and self._polling_id is None:
             return
 
         if self._polling_id:
@@ -220,31 +222,46 @@ class TrainingPage(Gtk.Box):
             return True
 
         if detection["face_detected"]:
-            self._session.update(detection["tongue_out"])
-
             cal_state = detection["calibration_state"]
+
             if cal_state == CalibrationState.BASELINE:
+                # Waehrend Kalibrierung: KEIN session.update()
                 self._status_label.set_label("Kalibrierung \u2013 Mund bitte geschlossen halten")
             elif cal_state == CalibrationState.TONGUE_PROMPT:
+                # Waehrend Kalibrierung: KEIN session.update()
                 self._status_label.set_label("Zeig mal kurz die Zunge!")
-            elif cal_state == CalibrationState.DONE and not detection["calibrated"]:
-                ranges = self._detector._calibration.get_tongue_hsv_range()
-                if ranges:
-                    self._window.profile.calibration = ranges
-                    self._window.save_profile()
-            elif self._session.state == SessionState.RUNNING:
-                self._status_label.set_label("Training laeuft")
-            elif self._session.state == SessionState.DETECTED:
-                remaining = self._session.remaining_resume
-                if remaining > 0:
-                    self._status_label.set_label(f"Film pausiert\u2026 noch {int(remaining)}\u202fs")
-                else:
-                    self._status_label.set_label("Zunge rein!")
-            elif self._session.state == SessionState.COOLDOWN:
-                remaining = self._session.remaining_cooldown
-                self._status_label.set_label(f"Abklingzeit\u2026 {int(remaining)}\u202fs")
+            elif cal_state == CalibrationState.DONE and not self._calibration_just_finished:
+                # Kalibrierung gerade abgeschlossen: Session JETZT starten
+                if self._session.state == SessionState.IDLE:
+                    self._session.start()
+                    self._calibration_just_finished = True
+                    self._status_label.set_label("Training laeuft")
+                    print("[Training] Session gestartet nach Kalibrierung")
+                # Kalibrierungsdaten speichern
+                if detection["calibrated"]:
+                    ranges = self._detector._calibration.get_tongue_hsv_range()
+                    if ranges:
+                        self._window.profile.calibration = ranges
+                        self._window.save_profile()
+            else:
+                # Normale Erkennung: nur wenn Session laeuft
+                if self._session.state != SessionState.IDLE:
+                    self._session.update(detection["tongue_out"])
+
+                if self._session.state == SessionState.RUNNING:
+                    self._status_label.set_label("Training laeuft")
+                elif self._session.state == SessionState.DETECTED:
+                    remaining = self._session.remaining_resume
+                    if remaining > 0:
+                        self._status_label.set_label(f"Film pausiert\u2026 noch {int(remaining)}\u202fs")
+                    else:
+                        self._status_label.set_label("Zunge rein!")
+                elif self._session.state == SessionState.COOLDOWN:
+                    remaining = self._session.remaining_cooldown
+                    self._status_label.set_label(f"Abklingzeit\u2026 {int(remaining)}\u202fs")
         else:
-            self._session.update(False)
+            if self._session.state != SessionState.IDLE:
+                self._session.update(False)
             if self._session.state == SessionState.RUNNING:
                 self._status_label.set_label("Kein Gesicht erkannt")
 

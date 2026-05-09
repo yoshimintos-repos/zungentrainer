@@ -26,9 +26,10 @@ INNER_LIP_INDICES = [
     415, 310, 311, 312, 13, 82, 81, 80, 191,
 ]
 
-TONGUE_RATIO_THRESHOLD = 0.08
+TONGUE_RATIO_THRESHOLD = 0.15
 TONGUE_TIP_THRESHOLD = 0.6
-MOUTH_OPEN_THRESHOLD = 0.02
+MOUTH_OPEN_THRESHOLD = 0.04
+GRACE_PERIOD_FRAMES = 30  # ~1 Sekunde nach Kalibrierung keine Erkennung
 
 
 class DetectorService:
@@ -42,6 +43,7 @@ class DetectorService:
         self._score_filter = OneEuroFilter(min_cutoff=1.0, beta=0.007)
         self._timestamp_ms = 0
         self._frame_count = 0
+        self._grace_frames_remaining = 0
         self.sensitivity = 1.0
         self._roi_save_interval = 5.0  # Sekunden
         self._last_roi_save = 0.0
@@ -115,19 +117,35 @@ class DetectorService:
 
         result["debug_roi"] = roi
 
+        prev_cal_state = self._calibration.state
         if self._calibration.state in (CalibrationState.BASELINE, CalibrationState.TONGUE_PROMPT):
             hsv_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
             self._calibration.feed_frame(hsv_roi, mouth_open)
             result["calibration_state"] = self._calibration.state
+
+            # State-Transition loggen
+            if self._calibration.state != prev_cal_state:
+                print(f"[Detektor] Kalibrierung: {prev_cal_state.name} -> {self._calibration.state.name}")
 
             if self._calibration.state == CalibrationState.DONE:
                 ranges = self._calibration.get_tongue_hsv_range()
                 if ranges:
                     self._hsv_detector.set_tongue_range(ranges["lower"], ranges["upper"])
                 result["calibrated"] = True
+                # Grace-Period starten: nach Kalibrierung kurz keine Erkennung
+                self._grace_frames_remaining = GRACE_PERIOD_FRAMES
+                self._score_filter.reset()
+                print(f"[Detektor] Kalibrierung abgeschlossen, Grace-Period: {GRACE_PERIOD_FRAMES} Frames")
             return result
 
         if not result["calibrated"]:
+            return result
+
+        # Grace-Period: nach Kalibrierung kurz keine Erkennung
+        if self._grace_frames_remaining > 0:
+            self._grace_frames_remaining -= 1
+            if self._grace_frames_remaining % 10 == 0:
+                print(f"[Detektor] Grace-Period: noch {self._grace_frames_remaining} Frames")
             return result
 
         detection = self._hsv_detector.detect(roi, mouth_area)
@@ -147,6 +165,11 @@ class DetectorService:
         threshold = TONGUE_RATIO_THRESHOLD / self.sensitivity
         result["tongue_out"] = smoothed > threshold and mouth_open
         result["confidence"] = min(smoothed / threshold, 1.0) if threshold > 0 else 0.0
+
+        # Debug-Logging: bei jedem Frame mit erkanntem Gesicht
+        print(f"[Detektor] ratio={tongue_ratio:.3f} smoothed={smoothed:.3f} "
+              f"mouth_open={mouth_open} threshold={threshold:.3f} "
+              f"tongue_out={result['tongue_out']}")
 
         # ROI-Datensammlung
         if self._roi_save_dir:
@@ -222,6 +245,7 @@ class DetectorService:
     def reset(self):
         self._score_filter.reset()
         self._frame_count = 0
+        self._grace_frames_remaining = 0
 
     def cleanup(self):
         if self._landmarker:
