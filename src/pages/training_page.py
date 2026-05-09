@@ -167,14 +167,18 @@ class TrainingPage(Gtk.Box):
         self._polling_id = GLib.timeout_add(33, self._poll_frame)
 
     def stop_training(self):
-        if self._session.state == SessionState.IDLE and self._polling_id is None:
+        # Guard: Nur wenn tatsaechlich etwas laeuft (Polling ODER Session)
+        if self._polling_id is None and self._session.state == SessionState.IDLE:
             return
 
         if self._polling_id:
             GLib.source_remove(self._polling_id)
             self._polling_id = None
 
-        result = self._session.stop()
+        if self._session.state != SessionState.IDLE:
+            result = self._session.stop()
+        else:
+            result = {"duration": 0, "incidents": 0, "success": False}
         self._camera.stop()
         self._detector.disable_roi_saving()
         self._mpris.resume_paused()
@@ -209,6 +213,10 @@ class TrainingPage(Gtk.Box):
         self._polling_id = GLib.timeout_add(33, self._poll_frame)
 
     def _poll_frame(self) -> bool:
+        # Guard: Stoppen wenn Polling deaktiviert wurde
+        if self._polling_id is None:
+            return False
+
         frame = self._camera.get_frame()
         if frame is None:
             return True
