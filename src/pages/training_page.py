@@ -13,6 +13,7 @@ from services.camera_service import CameraService
 from services.detector_service import DetectorService
 from services.sound_service import SoundService
 from services.mpris_service import MprisService
+from services.feedback_controller import FeedbackController, FeedbackMode
 from services.session_service import SessionService, SessionState
 from utils.camera_paintable import CameraPaintable
 from models.user_data import SessionRecord
@@ -38,6 +39,7 @@ class TrainingPage(Gtk.Box):
         )
         self._sound.volume = profile.settings.get("volume", 0.5)
         self._mpris = MprisService()
+        self._feedback = FeedbackController(self._sound, self._mpris)
         self._session = SessionService()
         self._paintable = CameraPaintable()
 
@@ -184,7 +186,7 @@ class TrainingPage(Gtk.Box):
             result = {"duration": 0, "incidents": 0, "success": False}
         self._camera.stop()
         self._detector.disable_roi_saving()
-        self._mpris.resume_paused()
+        self._feedback.cancel()
 
         self._start_button.set_visible(True)
         self._timer_label.set_visible(False)
@@ -203,7 +205,7 @@ class TrainingPage(Gtk.Box):
             GLib.source_remove(self._polling_id)
             self._polling_id = None
         self._camera.stop()
-        self._mpris.resume_paused()
+        self._feedback.cancel()
         self._paused_by_view_switch = True
         self._status_label.set_label("Training pausiert")
 
@@ -299,9 +301,13 @@ class TrainingPage(Gtk.Box):
         return True
 
     def _on_alarm(self):
-        self._sound.beep()
-        self._mpris.pause_all()
-        self._banner.set_title("Zunge erkannt \u2014 Film pausiert")
+        mode = self._feedback.start_alarm()
+        if mode == FeedbackMode.MEDIA_PAUSED:
+            self._banner.set_title("Zunge erkannt \u2014 Film pausiert")
+            notification_body = "Film pausiert"
+        else:
+            self._banner.set_title("Zunge erkannt \u2014 Ton läuft")
+            notification_body = "Ton läuft"
         self._banner.set_revealed(True)
 
         # Im Hintergrund: System-Benachrichtigung
@@ -312,11 +318,11 @@ class TrainingPage(Gtk.Box):
                 self._last_notification_time = now
                 app = self._window.get_application()
                 notification = Gio.Notification.new("Zunge erkannt")
-                notification.set_body("Film pausiert")
+                notification.set_body(notification_body)
                 app.send_notification("tongue-detected", notification)
 
     def _on_alarm_end(self):
-        self._mpris.resume_paused()
+        self._feedback.end_alarm()
         self._banner.set_revealed(False)
         # Benachrichtigung entfernen
         app = self._window.get_application()
@@ -374,6 +380,7 @@ class TrainingPage(Gtk.Box):
 
     def cleanup(self):
         self.stop_training()
+        self._feedback.cancel()
         self._sound.cleanup()
         self._detector.cleanup()
 

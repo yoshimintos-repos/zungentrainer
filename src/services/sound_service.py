@@ -18,8 +18,9 @@ class SoundService:
         self._frequency = frequency
         self._duration_ms = duration_ms
         self._volume = 0.5
-        self._pipeline = None
-        self._timeout_id = None
+        self._beep_pipeline = None
+        self._loop_pipeline = None
+        self._beep_timeout_id = None
 
     @property
     def volume(self):
@@ -46,19 +47,48 @@ class SoundService:
         self._play_tone(frequency=400, duration_ms=200,
                         volume=self._volume * 0.5)
 
+    def start_alarm_loop(self):
+        """Startet eine stoerende Audioschleife fuer den No-Media-Fall."""
+        if self._loop_pipeline:
+            return
+
+        pipeline_str = (
+            "audiotestsrc wave=2 freq=520 is-live=true "
+            "! audioconvert ! audioresample "
+            f"! volume volume={self._volume * 0.6} "
+            "! autoaudiosink"
+        )
+        self._loop_pipeline = Gst.parse_launch(pipeline_str)
+        bus = self._loop_pipeline.get_bus()
+        bus.add_signal_watch()
+        bus.connect("message::error", self._on_loop_error)
+        self._loop_pipeline.set_state(Gst.State.PLAYING)
+
+    def stop_alarm_loop(self):
+        """Stoppt die stoerende Audioschleife."""
+        if self._loop_pipeline:
+            bus = self._loop_pipeline.get_bus()
+            bus.remove_signal_watch()
+            self._loop_pipeline.set_state(Gst.State.NULL)
+            self._loop_pipeline = None
+
+    @property
+    def alarm_loop_playing(self) -> bool:
+        return self._loop_pipeline is not None
+
     def _play_tone(self, frequency: int, duration_ms: int, volume: float):
         """Spielt einen Ton mit gegebenen Parametern."""
         from gi.repository import GLib
 
         # Alten Beep sauber beenden (inkl. Timeout und Bus-Watch)
-        if self._timeout_id is not None:
-            GLib.source_remove(self._timeout_id)
-            self._timeout_id = None
-        if self._pipeline:
-            bus = self._pipeline.get_bus()
+        if self._beep_timeout_id is not None:
+            GLib.source_remove(self._beep_timeout_id)
+            self._beep_timeout_id = None
+        if self._beep_pipeline:
+            bus = self._beep_pipeline.get_bus()
             bus.remove_signal_watch()
-            self._pipeline.set_state(Gst.State.NULL)
-            self._pipeline = None
+            self._beep_pipeline.set_state(Gst.State.NULL)
+            self._beep_pipeline = None
 
         pipeline_str = (
             f"audiotestsrc freq={frequency} wave=0 "
@@ -66,23 +96,23 @@ class SoundService:
             f"! volume volume={volume} "
             f"! autoaudiosink"
         )
-        self._pipeline = Gst.parse_launch(pipeline_str)
+        self._beep_pipeline = Gst.parse_launch(pipeline_str)
 
-        bus = self._pipeline.get_bus()
+        bus = self._beep_pipeline.get_bus()
         bus.add_signal_watch()
         bus.connect("message::error", self._on_error)
 
-        self._pipeline.set_state(Gst.State.PLAYING)
+        self._beep_pipeline.set_state(Gst.State.PLAYING)
 
-        self._timeout_id = GLib.timeout_add(duration_ms, self._stop_beep)
+        self._beep_timeout_id = GLib.timeout_add(duration_ms, self._stop_beep)
 
     def _stop_beep(self):
-        self._timeout_id = None
-        if self._pipeline:
-            bus = self._pipeline.get_bus()
+        self._beep_timeout_id = None
+        if self._beep_pipeline:
+            bus = self._beep_pipeline.get_bus()
             bus.remove_signal_watch()
-            self._pipeline.set_state(Gst.State.NULL)
-            self._pipeline = None
+            self._beep_pipeline.set_state(Gst.State.NULL)
+            self._beep_pipeline = None
         return False
 
     def _on_error(self, bus, msg):
@@ -90,14 +120,20 @@ class SoundService:
         print(f"SoundService Fehler: {err.message}")
         self._stop_beep()
 
+    def _on_loop_error(self, bus, msg):
+        err, debug = msg.parse_error()
+        print(f"SoundService Alarm-Schleife Fehler: {err.message}")
+        self.stop_alarm_loop()
+
     def cleanup(self):
         from gi.repository import GLib
 
-        if self._timeout_id is not None:
-            GLib.source_remove(self._timeout_id)
-            self._timeout_id = None
-        if self._pipeline:
-            bus = self._pipeline.get_bus()
+        if self._beep_timeout_id is not None:
+            GLib.source_remove(self._beep_timeout_id)
+            self._beep_timeout_id = None
+        if self._beep_pipeline:
+            bus = self._beep_pipeline.get_bus()
             bus.remove_signal_watch()
-            self._pipeline.set_state(Gst.State.NULL)
-            self._pipeline = None
+            self._beep_pipeline.set_state(Gst.State.NULL)
+            self._beep_pipeline = None
+        self.stop_alarm_loop()

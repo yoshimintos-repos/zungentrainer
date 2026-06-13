@@ -64,6 +64,8 @@ class MprisService:
 
     def _call_player_method(self, bus_name: str, method: str):
         """Ruft eine Methode auf dem Player-Interface auf."""
+        if not self._bus:
+            return
         try:
             self._bus.call_sync(
                 bus_name,
@@ -79,14 +81,25 @@ class MprisService:
         except GLib.Error as e:
             print(f"MprisService: {method} fehlgeschlagen für {bus_name}: {e.message}")
 
-    def pause_all(self):
+    def get_playing_players(self) -> list[str]:
+        """Gibt alle aktuell spielenden MPRIS2-Player zurueck."""
+        playing = []
+        for name in self._get_player_names():
+            if self._get_playback_status(name) == "Playing":
+                playing.append(name)
+        return playing
+
+    def has_playing_players(self) -> bool:
+        """True, wenn gerade mindestens ein Medienplayer spielt."""
+        return bool(self.get_playing_players())
+
+    def pause_all(self) -> list[str]:
         """Pausiert alle spielenden Medienplayer und merkt sie sich."""
         self._paused_players.clear()
-        for name in self._get_player_names():
-            status = self._get_playback_status(name)
-            if status == "Playing":
-                self._call_player_method(name, "Pause")
-                self._paused_players.append(name)
+        for name in self.get_playing_players():
+            self._call_player_method(name, "Pause")
+            self._paused_players.append(name)
+        return self._paused_players.copy()
 
     def resume_paused(self):
         """Setzt alle von uns pausierten Player fort."""
