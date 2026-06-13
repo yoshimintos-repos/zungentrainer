@@ -1,6 +1,9 @@
 # ZungenTrainer
 
-Trainings-App die per Webcam erkennt wenn die Zunge heraushaengt und dann Medienplayer pausiert + einen Piepton gibt. Hilft Kindern, sich die Gewohnheit der Zungenprotrusion abzugewoehnen.
+Unauffaelliger Hintergrund-Trainer, der per Webcam erkennt wenn die Zunge
+heraushaengt. Bei erkannter Zunge piept die App und pausiert laufende Medien.
+Wenn keine Medien laufen, spielt sie einen stoerenden Ton, bis die Zunge wieder
+drin ist.
 
 ## Installation
 
@@ -59,18 +62,16 @@ flatpak run de.yoshimintos.ZungenTrainer
 - **Zungenerkennung** per Webcam (HSV-Farbsegmentierung + geometrische Analyse)
 - **Mediensteuerung** — pausiert Spotify, Firefox etc. bei Zungenprotrusion
 - **Piepton-Alarm** bei erkannter Zunge
-- **Adaptive Schwierigkeit** — passt sich automatisch dem Trainingsfortschritt an
-- **Meilensteine** — Achievements fuer regelmaessiges Training
-- **Wochen-Streak** — trackt Trainingsplan-Erfuellung
+- **Stoerender Ton** wenn keine Medien laufen
+- **Minimale Oberflaeche** — eine Ueberwachungsseite plus Einstellungen im Menue
 - **Onboarding** — 5-Schritt-Assistent beim ersten Start
-- **Eltern-Bereich** — Polkit-geschuetzte Einstellungen fuer Trainingsplan und Schwierigkeit
 
 ## Tastaturkuerzel
 
 | Kuerzel | Funktion |
 |---------|----------|
-| Space | Training starten / stoppen |
-| Escape | Training abbrechen |
+| Space | Ueberwachung starten / stoppen |
+| Escape | Ueberwachung abbrechen |
 | Ctrl+Q | App beenden |
 
 ## Entwicklung & Debugging

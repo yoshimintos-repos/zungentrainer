@@ -1,12 +1,10 @@
-"""Hauptfenster mit ViewStack-Navigation (3 Views)."""
+"""Hauptfenster fuer die unauffaellige Ueberwachung."""
 import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Gtk, Adw, Gio
 
 from pages.training_page import TrainingPage
-from pages.progress_page import ProgressPage
-from pages.settings_page import SettingsPage
 from models.persistence import DataStore
 from systems.adaptive_difficulty import AdaptiveDifficulty
 from systems.milestone_system import MilestoneSystem
@@ -50,58 +48,28 @@ class ZungenTrainerWindow(Adw.ApplicationWindow):
         self.set_content(self._toast_overlay)
 
         self._toolbar_view = Adw.ToolbarView()
-        toolbar_view = self._toolbar_view
-        self._toast_overlay.set_child(toolbar_view)
+        self._toast_overlay.set_child(self._toolbar_view)
 
         header = Adw.HeaderBar()
+        header.set_title_widget(Adw.WindowTitle(title="ZungenTrainer"))
 
         # Hamburger-Menue
         menu_model = Gio.Menu()
+        menu_model.append("Einstellungen", "win.settings")
         menu_model.append("Ueber ZungenTrainer", "app.about")
         menu_button = Gtk.MenuButton(icon_name="open-menu-symbolic")
         menu_button.set_menu_model(menu_model)
         menu_button.set_tooltip_text("Hauptmenue")
         header.pack_end(menu_button)
 
-        toolbar_view.add_top_bar(header)
-
-        self.view_stack = Adw.ViewStack()
-        self.view_stack.set_vexpand(True)
-        toolbar_view.set_content(self.view_stack)
-
-        switcher_bar = Adw.ViewSwitcherBar()
-        switcher_bar.set_stack(self.view_stack)
-        toolbar_view.add_bottom_bar(switcher_bar)
-
-        switcher_title = Adw.ViewSwitcherTitle()
-        switcher_title.set_stack(self.view_stack)
-        switcher_title.set_title("ZungenTrainer")
-        header.set_title_widget(switcher_title)
-
-        switcher_title.connect(
-            "notify::title-visible",
-            lambda st, _: switcher_bar.set_reveal(st.get_title_visible()),
-        )
+        self._toolbar_view.add_top_bar(header)
 
         self.training_page = TrainingPage(self)
-        self.progress_page = ProgressPage(self)
-        self.settings_page = SettingsPage(self)
+        self._toolbar_view.set_content(self.training_page)
 
-        self.view_stack.add_titled_with_icon(
-            self.training_page, "training", "Training", "camera-video-symbolic"
-        )
-        self.view_stack.add_titled_with_icon(
-            self.progress_page, "progress", "Fortschritt", "starred-symbolic"
-        )
-        self.view_stack.add_titled_with_icon(
-            self.settings_page, "settings", "Einstellungen", "preferences-system-symbolic"
-        )
-
-        # View-Wechsel: Training pausieren/fortsetzen
-        self.view_stack.connect(
-            "notify::visible-child",
-            self._on_visible_child_changed,
-        )
+        settings_action = Gio.SimpleAction.new("settings", None)
+        settings_action.connect("activate", lambda *_: self._show_settings_dialog())
+        self.add_action(settings_action)
 
     def _show_onboarding(self):
         """Zeigt Onboarding statt ViewStack."""
@@ -116,18 +84,27 @@ class ZungenTrainerWindow(Adw.ApplicationWindow):
         self._onboarding = None
         self.show_toast("Willkommen, " + self.profile.name + "!")
 
-    def _on_visible_child_changed(self, stack, _param):
-        visible = stack.get_visible_child()
-        if visible == self.training_page:
-            self.training_page.resume_training()
-        else:
-            self.training_page.pause_training()
+    def _show_settings_dialog(self):
+        """Oeffnet die reduzierten Einstellungen aus dem Hauptmenue."""
+        from pages.settings_page import SettingsPage
+
+        settings_page = SettingsPage(self)
+        dialog = Adw.Dialog()
+        dialog.set_title("Einstellungen")
+        dialog.set_content_width(500)
+        dialog.set_content_height(600)
+
+        toolbar = Adw.ToolbarView()
+        header = Adw.HeaderBar()
+        toolbar.add_top_bar(header)
+        toolbar.set_content(settings_page)
+        dialog.set_child(toolbar)
+        dialog.present(self)
 
     def toggle_training(self):
-        """Space-Taste: Training starten oder stoppen."""
+        """Space-Taste: Ueberwachung starten oder stoppen."""
         from services.session_service import SessionState
         if self.training_page._session.state == SessionState.IDLE:
-            self.view_stack.set_visible_child(self.training_page)
             self.training_page.start_training()
         else:
             self.training_page.stop_training()
@@ -139,8 +116,7 @@ class ZungenTrainerWindow(Adw.ApplicationWindow):
             print(f"Fehler beim Speichern: {e}")
 
     def refresh_pages(self):
-        self.progress_page.refresh()
-        self.settings_page.refresh()
+        pass
 
     def _on_active_changed(self, window, _param):
         """Fenster wurde aktiviert/deaktiviert (Minimize, Workspace-Wechsel)."""

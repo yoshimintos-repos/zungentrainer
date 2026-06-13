@@ -1,4 +1,4 @@
-"""Trainings-Seite mit Kamera-Feed, OSD-Overlays und Session-Steuerung."""
+"""Ueberwachungsseite mit Kamera-Feed, OSD-Overlays und Alarm-Steuerung."""
 
 import os
 from datetime import datetime
@@ -22,7 +22,7 @@ from detection.calibration import CalibrationState
 
 
 class TrainingPage(Gtk.Box):
-    """Hauptseite: Kamera-Feed mit OSD-Overlays fuer Training."""
+    """Hauptseite: Kamera-Feed mit OSD-Overlays fuer die Ueberwachung."""
 
     def __init__(self, main_window):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
@@ -92,9 +92,9 @@ class TrainingPage(Gtk.Box):
         self._timer_label.set_margin_top(12)
         self._timer_label.set_margin_end(12)
         self._timer_label.set_visible(False)
-        self._timer_label.set_tooltip_text("Trainingszeit")
+        self._timer_label.set_tooltip_text("Aktive Zeit")
         self._timer_label.update_property(
-            [Gtk.AccessibleProperty.LABEL], ["Trainingszeit"]
+            [Gtk.AccessibleProperty.LABEL], ["Aktive Zeit"]
         )
         overlay.add_overlay(self._timer_label)
 
@@ -112,7 +112,7 @@ class TrainingPage(Gtk.Box):
         bottom_box.append(self._incident_label)
 
         self._stop_button = Gtk.Button(icon_name="media-playback-stop-symbolic")
-        self._stop_button.set_tooltip_text("Training beenden")
+        self._stop_button.set_tooltip_text("Ueberwachung beenden")
         self._stop_button.add_css_class("circular")
         self._stop_button.set_visible(False)
         self._stop_button.connect("clicked", lambda _: self.stop_training())
@@ -120,16 +120,16 @@ class TrainingPage(Gtk.Box):
 
         overlay.add_overlay(bottom_box)
 
-        self._start_button = Gtk.Button(label="Training starten")
+        self._start_button = Gtk.Button(label="Ueberwachung starten")
         self._start_button.add_css_class("suggested-action")
         self._start_button.add_css_class("pill")
         self._start_button.set_halign(Gtk.Align.CENTER)
         self._start_button.set_valign(Gtk.Align.CENTER)
-        self._start_button.set_tooltip_text("Training starten")
+        self._start_button.set_tooltip_text("Ueberwachung starten")
         self._start_button.connect("clicked", lambda _: self.start_training())
         overlay.add_overlay(self._start_button)
 
-        self._status_label = Gtk.Label(label="Bereit zum Training")
+        self._status_label = Gtk.Label(label="Bereit zur Ueberwachung")
         self._status_label.add_css_class("dim-label")
         self._status_label.set_margin_top(8)
         self._status_label.set_margin_bottom(8)
@@ -194,7 +194,7 @@ class TrainingPage(Gtk.Box):
         self._incident_label.set_visible(False)
         self._stop_button.set_visible(False)
         self._banner.set_revealed(False)
-        self._status_label.set_label("Bereit zum Training")
+        self._status_label.set_label("Bereit zur Ueberwachung")
 
         if result["duration"] > 10:
             self._finish_session(result)
@@ -208,14 +208,14 @@ class TrainingPage(Gtk.Box):
         self._camera.stop()
         self._feedback.cancel()
         self._paused_by_view_switch = True
-        self._status_label.set_label("Training pausiert")
+        self._status_label.set_label("Ueberwachung pausiert")
 
     def resume_training(self):
         if not self._paused_by_view_switch:
             return
         self._paused_by_view_switch = False
         self._camera.start()
-        self._status_label.set_label("Training laeuft")
+        self._status_label.set_label("Ueberwachung laeuft")
         self._polling_id = GLib.timeout_add(33, self._poll_frame)
 
     def set_background_mode(self, background: bool):
@@ -257,7 +257,7 @@ class TrainingPage(Gtk.Box):
                     self._session.start()
                     self._calibration_just_finished = True
                     if not self._background_mode:
-                        self._status_label.set_label("Training laeuft")
+                        self._status_label.set_label("Ueberwachung laeuft")
                     import logging; logging.getLogger("zungentrainer.detektor").info("[Training] Session gestartet nach Kalibrierung")
                 # Kalibrierungsdaten speichern
                 if detection["calibrated"]:
@@ -277,7 +277,7 @@ class TrainingPage(Gtk.Box):
 
                 if not self._background_mode:
                     if self._session.state == SessionState.RUNNING:
-                        self._status_label.set_label("Training laeuft")
+                        self._status_label.set_label("Ueberwachung laeuft")
                     elif self._session.state == SessionState.DETECTED:
                         remaining = self._session.remaining_resume
                         if remaining > 0:
@@ -380,7 +380,7 @@ class TrainingPage(Gtk.Box):
         # Streak aktualisieren
         self._window.streak_system.update_streak(profile)
 
-        toast = Adw.Toast(title=f"Training beendet \u2014 {result['incidents']} Vorfaelle")
+        toast = Adw.Toast(title=f"Ueberwachung beendet \u2014 {result['incidents']} Vorfaelle")
         toast.set_timeout(3)
         self._toast_overlay.add_toast(toast)
 

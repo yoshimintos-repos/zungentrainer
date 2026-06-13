@@ -46,13 +46,13 @@ class ZungenTrainerApp(Adw.Application):
         about_action.connect("activate", lambda *_: self._show_about(win))
         self.add_action(about_action)
 
-        # Space: Training starten/stoppen
+        # Space: Ueberwachung starten/stoppen
         toggle_action = Gio.SimpleAction.new("toggle-training", None)
         toggle_action.connect("activate", lambda *_: win.toggle_training())
         win.add_action(toggle_action)
         self.set_accels_for_action("win.toggle-training", ["space"])
 
-        # Escape: Training abbrechen
+        # Escape: Ueberwachung abbrechen
         stop_action = Gio.SimpleAction.new("stop-training", None)
         stop_action.connect("activate", lambda *_: win.training_page.stop_training())
         win.add_action(stop_action)
