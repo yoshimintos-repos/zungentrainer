@@ -53,6 +53,7 @@ class TrainingPage(Gtk.Box):
 
     def _apply_difficulty(self):
         params = self._window.adaptive_difficulty.get_params()
+        self._session.reaction_time = params["reaction_time"]
         self._session.resume_delay = params["resume_delay"]
         self._session.cooldown_time = params["cooldown"]
         self._session.required_session_time = self._window.profile.min_session_duration * 60.0

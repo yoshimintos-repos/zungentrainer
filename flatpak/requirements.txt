@@ -1,0 +1,7 @@
+# Python wheels installed into the Flatpak runtime.
+#
+# Keep these pinned. build-flatpak.sh downloads the complete transitive wheel
+# set into flatpak/pip-cache and the Flatpak manifest installs from this file
+# with --no-index.
+mediapipe==0.10.32
+numpy==2.4.2

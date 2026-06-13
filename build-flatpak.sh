@@ -1,83 +1,187 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # ZungenTrainer Flatpak Build-Skript
 #
-# Voraussetzungen:
-#   flatpak install flathub org.gnome.Platform//49
-#   flatpak install flathub org.gnome.Sdk//49
-#   flatpak install flathub org.flatpak.Builder
-#
 # Verwendung:
-#   ./build-flatpak.sh          # Baut und installiert lokal
-#   ./build-flatpak.sh bundle   # Erstellt eine .flatpak Datei zum Weitergeben
+#   ./build-flatpak.sh build         # Abhaengigkeiten pruefen, bauen, lokal installieren
+#   ./build-flatpak.sh bundle        # Bauen, installieren und ZungenTrainer.flatpak erstellen
+#   ./build-flatpak.sh deps          # Fehlende Python-Wheels herunterladen
+#   ./build-flatpak.sh deps-refresh  # Wheel-Cache neu erstellen
+#   ./build-flatpak.sh clean         # Lokale Build-Artefakte entfernen
+#
+# Ohne Argument wird "build" ausgefuehrt.
 
-set -e
+set -Eeuo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+APP_ID="de.yoshimintos.ZungenTrainer"
+RUNTIME="org.gnome.Platform//49"
+SDK="org.gnome.Sdk//49"
+BUILDER_APP="org.flatpak.Builder"
+MANIFEST="flatpak/de.yoshimintos.ZungenTrainer.json"
+REQUIREMENTS="flatpak/requirements.txt"
+PIP_CACHE="flatpak/pip-cache"
 BUILD_DIR="$SCRIPT_DIR/.flatpak-build"
 REPO_DIR="$SCRIPT_DIR/.flatpak-repo"
-APP_ID="de.yoshimintos.ZungenTrainer"
+BUNDLE_FILE="ZungenTrainer.flatpak"
 
-echo "=== ZungenTrainer Flatpak Build ==="
+usage() {
+    sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
+}
 
-# Prüfe ob pip-cache existiert
-if [ ! -d "flatpak/pip-cache" ] || [ -z "$(ls flatpak/pip-cache/*.whl 2>/dev/null)" ]; then
-    echo ""
-    echo "Lade Python-Abhängigkeiten herunter..."
-    mkdir -p flatpak/pip-cache
-    pip3 download \
-        --dest flatpak/pip-cache \
+die() {
+    echo "Fehler: $*" >&2
+    exit 1
+}
+
+need_cmd() {
+    command -v "$1" >/dev/null 2>&1 || die "'$1' ist nicht installiert"
+}
+
+check_flatpak_ref() {
+    local ref="$1"
+    flatpak info "$ref" >/dev/null 2>&1 || die "Flatpak-Ref fehlt: $ref"
+}
+
+preflight() {
+    need_cmd flatpak
+    need_cmd python3
+    [ -f "$MANIFEST" ] || die "Manifest fehlt: $MANIFEST"
+    [ -f "$REQUIREMENTS" ] || die "Requirements fehlen: $REQUIREMENTS"
+    [ -f "data/face_landmarker.task" ] || die "MediaPipe-Modell fehlt: data/face_landmarker.task"
+
+    python3 -m json.tool "$MANIFEST" >/dev/null
+    check_flatpak_ref "$RUNTIME"
+    check_flatpak_ref "$SDK"
+    check_flatpak_ref "$BUILDER_APP"
+}
+
+download_deps() {
+    local refresh="${1:-0}"
+    need_cmd python3
+    [ -f "$REQUIREMENTS" ] || die "Requirements fehlen: $REQUIREMENTS"
+
+    if [ "$refresh" = "1" ]; then
+        echo "Entferne alten Wheel-Cache..."
+        rm -rf "$PIP_CACHE"
+    fi
+
+    mkdir -p "$PIP_CACHE"
+
+    echo "Lade Python-Wheels nach $PIP_CACHE..."
+    PIP_CACHE_DIR="$SCRIPT_DIR/.pip-cache" \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    python3 -m pip download \
+        --requirement "$REQUIREMENTS" \
+        --dest "$PIP_CACHE" \
         --only-binary=:all: \
         --python-version 313 \
+        --implementation cp \
+        --abi cp313 \
         --platform manylinux_2_28_x86_64 \
         --platform manylinux_2_17_x86_64 \
         --platform manylinux2014_x86_64 \
-        --platform linux_x86_64 \
+        --platform any
+
+    echo "Wheel-Cache bereit."
+}
+
+ensure_deps() {
+    if [ ! -d "$PIP_CACHE" ] || [ -z "$(find "$PIP_CACHE" -maxdepth 1 -name '*.whl' -print -quit)" ]; then
+        download_deps 0
+        return
+    fi
+
+    PIP_CACHE_DIR="$SCRIPT_DIR/.pip-cache" \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    python3 -m pip download \
+        --requirement "$REQUIREMENTS" \
+        --dest "$PIP_CACHE" \
+        --only-binary=:all: \
+        --python-version 313 \
+        --implementation cp \
+        --abi cp313 \
+        --platform manylinux_2_28_x86_64 \
+        --platform manylinux_2_17_x86_64 \
+        --platform manylinux2014_x86_64 \
         --platform any \
-        "mediapipe>=0.10.30" numpy opencv-python-headless
-    echo "Abhängigkeiten heruntergeladen."
-fi
+        --no-index \
+        --find-links "$PIP_CACHE" >/dev/null
+}
 
-# OSTree-Repo initialisieren (mit min-free-space=0 für kleine Festplatten)
-if [ ! -d "$REPO_DIR" ]; then
-    flatpak run --command=ostree org.flatpak.Builder \
+init_repo() {
+    if [ -d "$REPO_DIR" ]; then
+        return
+    fi
+
+    flatpak run --command=ostree "$BUILDER_APP" \
         init --repo="$REPO_DIR" --mode=archive-z2
-    flatpak run --command=ostree org.flatpak.Builder \
+    flatpak run --command=ostree "$BUILDER_APP" \
         config set --repo="$REPO_DIR" core.min-free-space-percent 0
-fi
+}
 
-echo ""
-echo "Baue Flatpak..."
-flatpak run org.flatpak.Builder \
-    --force-clean \
-    --disable-cache \
-    --user \
-    --install \
-    --repo="$REPO_DIR" \
-    "$BUILD_DIR" \
-    flatpak/de.yoshimintos.ZungenTrainer.json
+build_flatpak() {
+    preflight
+    ensure_deps
+    init_repo
 
-echo ""
-echo "Flatpak installiert! Starten mit:"
-echo "  flatpak run $APP_ID"
+    echo "Baue Flatpak..."
+    flatpak run "$BUILDER_APP" \
+        --force-clean \
+        --disable-cache \
+        --user \
+        --install \
+        --repo="$REPO_DIR" \
+        "$BUILD_DIR" \
+        "$MANIFEST"
 
-# Build-Artefakte aufräumen
-rm -rf "$BUILD_DIR" .flatpak-builder
+    rm -rf "$BUILD_DIR" .flatpak-builder
 
-# Bundle erstellen wenn gewünscht
-if [ "${1:-}" = "bundle" ]; then
-    echo ""
+    echo
+    echo "Flatpak installiert. Starten mit:"
+    echo "  flatpak run $APP_ID"
+}
+
+build_bundle() {
+    build_flatpak
+
+    echo
     echo "Erstelle Bundle..."
-    flatpak build-bundle "$REPO_DIR" \
-        "ZungenTrainer.flatpak" \
-        "$APP_ID"
-    rm -rf "$REPO_DIR"
-    SIZE=$(du -h ZungenTrainer.flatpak | cut -f1)
-    echo ""
-    echo "Bundle erstellt: ZungenTrainer.flatpak ($SIZE)"
-    echo ""
-    echo "Auf einem anderen Computer installieren mit:"
-    echo "  flatpak install flathub org.gnome.Platform//49"
-    echo "  flatpak install ZungenTrainer.flatpak"
-fi
+    flatpak build-bundle "$REPO_DIR" "$BUNDLE_FILE" "$APP_ID"
+
+    local size
+    size="$(du -h "$BUNDLE_FILE" | cut -f1)"
+    echo
+    echo "Bundle erstellt: $BUNDLE_FILE ($size)"
+}
+
+clean() {
+    rm -rf "$BUILD_DIR" .flatpak-builder .pip-cache
+    echo "Build-Artefakte entfernt."
+}
+
+case "${1:-build}" in
+    build)
+        build_flatpak
+        ;;
+    bundle)
+        build_bundle
+        ;;
+    deps)
+        ensure_deps
+        ;;
+    deps-refresh)
+        download_deps 1
+        ;;
+    clean)
+        clean
+        ;;
+    help|-h|--help)
+        usage
+        ;;
+    *)
+        usage >&2
+        die "Unbekannter Modus: $1"
+        ;;
+esac

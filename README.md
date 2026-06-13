@@ -23,7 +23,10 @@ flatpak install flathub org.gnome.Sdk//49
 flatpak install flathub org.flatpak.Builder
 
 # Bauen und installieren
-./build-flatpak.sh
+./build-flatpak.sh build
+
+# Python-Wheel-Cache bei Dependency-Aenderungen neu erstellen
+./build-flatpak.sh deps-refresh
 
 # Starten
 flatpak run de.yoshimintos.ZungenTrainer
@@ -69,6 +72,15 @@ flatpak run de.yoshimintos.ZungenTrainer
 | Space | Training starten / stoppen |
 | Escape | Training abbrechen |
 | Ctrl+Q | App beenden |
+
+## Entwicklung & Debugging
+
+Der Live-Test der Erkennung ist in [docs/debug-workflow.md](docs/debug-workflow.md)
+beschrieben. Unit-Tests laufen mit:
+
+```bash
+PYTHONPATH=src python3 -m pytest tests/ -v
+```
 
 ## Lizenz
 

@@ -28,12 +28,12 @@
             "name": "python-deps",
             "buildsystem": "simple",
             "build-commands": [
-                "pip3 install --no-index --find-links=. --prefix=/app --no-build-isolation --ignore-installed *.whl"
+                "pip3 install --no-index --find-links=pip-cache --prefix=/app --no-build-isolation --ignore-installed -r requirements.txt"
             ],
             "sources": [
                 {
                     "type": "dir",
-                    "path": "pip-cache"
+                    "path": "."
                 }
             ]
         },
@@ -43,6 +43,8 @@
             "build-commands": [
                 "install -d /app/share/zungentrainer",
                 "cp -r src/* /app/share/zungentrainer/",
+                "find /app/share/zungentrainer -type d -name __pycache__ -prune -exec rm -rf {} +",
+                "find /app/share/zungentrainer -type f -name '*.pyc' -delete",
                 "install -d /app/share/zungentrainer/data",
                 "cp data/face_landmarker.task /app/share/zungentrainer/data/",
                 "install -Dm755 bin/zungentrainer /app/bin/zungentrainer",

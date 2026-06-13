@@ -16,8 +16,8 @@
       ertönt ein Piepton und laufende Musik wird pausiert.
     </p>
     <p>
-      Gamification mit Leveln, Abzeichen und sammelbaren Kreaturen
-      ("Zungenfreunde") motiviert zum regelmäßigen Training.
+      Wochenziele, Meilensteine und eine automatisch angepasste Schwierigkeit
+      machen den Trainingsfortschritt nachvollziehbar.
     </p>
   </description>
 
@@ -44,13 +44,12 @@
   <releases>
     <release version="1.0.0" date="2026-02-19">
       <description>
-        <p>Erste Veröffentlichung mit allen Kernfunktionen:</p>
+        <p>Erste Veröffentlichung mit den Kernfunktionen:</p>
         <ul>
           <li>Webcam-basierte Zungenerkennung mit MediaPipe</li>
           <li>Piepton und Medienpausierung bei Erkennung</li>
-          <li>10-Level Schwierigkeitssystem</li>
-          <li>12 sammelbare Zungenfreunde</li>
-          <li>15 freischaltbare Abzeichen</li>
+          <li>Adaptive Schwierigkeit</li>
+          <li>Wochenziele, Streaks und Meilensteine</li>
           <li>Trainingsstatistiken und Streak-System</li>
         </ul>
       </description>

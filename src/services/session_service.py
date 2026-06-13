@@ -19,6 +19,7 @@ class SessionState(Enum):
 class SessionService:
     def __init__(self):
         self.state = SessionState.IDLE
+        self.reaction_time = 0.0
         self.resume_delay = 0.0
         self.cooldown_time = 5.0
         self.max_incidents = 0
@@ -26,6 +27,7 @@ class SessionService:
         self._detected_time = None
         self._cooldown_start = None
         self._session_start = None
+        self._tongue_start = None
         self._incident_count = 0
         self._confirm_count = 0
         self.on_alarm = None
@@ -69,6 +71,7 @@ class SessionService:
         self._session_start = time.monotonic()
         self._detected_time = None
         self._cooldown_start = None
+        self._tongue_start = None
         self._incident_count = 0
         self._confirm_count = 0
         self._notify_state_change()
@@ -81,6 +84,7 @@ class SessionService:
         self._session_start = None
         self._detected_time = None
         self._cooldown_start = None
+        self._tongue_start = None
         self._confirm_count = 0
         self._notify_state_change()
         return {"duration": duration, "incidents": incidents, "success": success}
@@ -88,16 +92,24 @@ class SessionService:
     def update(self, tongue_out: bool):
         now = time.monotonic()
         if tongue_out:
+            if self._tongue_start is None:
+                self._tongue_start = now
             self._confirm_count += 1
         else:
+            self._tongue_start = None
             self._confirm_count = 0
         confirmed = self._confirm_count >= CONFIRM_FRAMES
+        reaction_elapsed = (
+            self._tongue_start is not None
+            and (now - self._tongue_start) >= self.reaction_time
+        )
 
         if self.state == SessionState.RUNNING:
-            if confirmed:
+            if confirmed and reaction_elapsed:
                 self._incident_count += 1
                 self.state = SessionState.DETECTED
                 self._detected_time = now
+                self._tongue_start = None
                 self._confirm_count = 0
                 self._notify_state_change()
                 if self.on_alarm:
