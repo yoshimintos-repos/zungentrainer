@@ -6,9 +6,6 @@ from gi.repository import Gtk, Adw, Gio
 
 from pages.training_page import TrainingPage
 from models.persistence import DataStore
-from systems.adaptive_difficulty import AdaptiveDifficulty
-from systems.milestone_system import MilestoneSystem
-from systems.streak_system import StreakSystem
 
 
 class ZungenTrainerWindow(Adw.ApplicationWindow):
@@ -20,11 +17,6 @@ class ZungenTrainerWindow(Adw.ApplicationWindow):
 
         self.data_store = DataStore()
         self.profile = self.data_store.load()
-        self.adaptive_difficulty = AdaptiveDifficulty.from_dict(
-            self.profile.difficulty_params
-        )
-        self.milestone_system = MilestoneSystem()
-        self.streak_system = StreakSystem()
 
         self._build_ui()
         self.connect("close-request", self._on_close)

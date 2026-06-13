@@ -20,6 +20,11 @@ from models.user_data import SessionRecord
 from detection.decision import DetectionState
 from detection.calibration import CalibrationState
 
+REACTION_TIME_SECONDS = 0.7
+MEDIA_RESUME_DELAY_SECONDS = 3.0
+COOLDOWN_SECONDS = 0.5
+DETECTOR_SENSITIVITY = 1.0
+
 
 class TrainingPage(Gtk.Box):
     """Hauptseite: Kamera-Feed mit OSD-Overlays fuer die Ueberwachung."""
@@ -59,12 +64,11 @@ class TrainingPage(Gtk.Box):
         self._build_ui()
 
     def _apply_difficulty(self):
-        params = self._window.adaptive_difficulty.get_params()
-        self._session.reaction_time = params["reaction_time"]
-        self._session.resume_delay = params["resume_delay"]
-        self._session.cooldown_time = params["cooldown"]
+        self._session.reaction_time = REACTION_TIME_SECONDS
+        self._session.resume_delay = MEDIA_RESUME_DELAY_SECONDS
+        self._session.cooldown_time = COOLDOWN_SECONDS
         self._session.required_session_time = self._window.profile.min_session_duration * 60.0
-        self._detector.sensitivity = params["sensitivity"]
+        self._detector.sensitivity = DETECTOR_SENSITIVITY
 
     def _build_ui(self):
         self._toast_overlay = Adw.ToastOverlay()
@@ -362,27 +366,8 @@ class TrainingPage(Gtk.Box):
         if result["success"]:
             profile.successful_sessions += 1
 
-        self._window.adaptive_difficulty.adjust_after_session(
-            incidents=result["incidents"],
-            duration_minutes=result["duration"] / 60.0,
-        )
-        profile.difficulty_params = self._window.adaptive_difficulty.to_dict()
-
         self._window.save_profile()
         self._window.refresh_pages()
-
-        # Meilensteine pruefen
-        new_milestones = self._window.milestone_system.check_milestones(profile)
-        for ms in new_milestones:
-            profile.milestones.append(ms)
-            toast = Adw.Toast(title=f"Meilenstein: {ms.name}")
-            toast.set_timeout(5)
-            self._toast_overlay.add_toast(toast)
-        if new_milestones:
-            self._window.save_profile()
-
-        # Streak aktualisieren
-        self._window.streak_system.update_streak(profile)
 
         toast = Adw.Toast(title=f"Ueberwachung beendet \u2014 {result['incidents']} Vorfaelle")
         toast.set_timeout(3)

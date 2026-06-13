@@ -69,9 +69,10 @@ flatpak run de.yoshimintos.ZungenTrainer
 
 ### Window as Mediator
 
-`ZungenTrainerWindow` owns `DataStore`, `UserProfile`, `AdaptiveDifficulty`,
-`MilestoneSystem`, and `StreakSystem`. Pages reference the window and access
-shared state through it.
+`ZungenTrainerWindow` owns `DataStore` and `UserProfile`. The monitoring page
+references the window and accesses shared state through it. Historical
+progress/adaptive systems may still exist in the tree, but they are not part of
+the active v3 runtime flow.
 
 ### Detection Pipeline
 
