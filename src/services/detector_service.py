@@ -26,6 +26,7 @@ except ImportError:
     mp = None
 
 from detection.calibration import Calibration, CalibrationState
+from detection.decision import decision_from_legacy_detection
 from detection.hsv_detector import HsvDetector
 from detection.one_euro_filter import OneEuroFilter
 
@@ -102,11 +103,13 @@ class DetectorService:
             "tongue_ratio": 0.0,
             "smoothed_score": 0.0,
             "calibration_state": self._calibration.state,
+            "decision": None,
             "debug_roi": None,
             "debug_mask": None,
         }
 
         if self._landmarker is None:
+            result["decision"] = decision_from_legacy_detection(result)
             return result
 
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -116,9 +119,11 @@ class DetectorService:
         try:
             face_result = self._landmarker.detect_for_video(mp_image, self._timestamp_ms)
         except Exception:
+            result["decision"] = decision_from_legacy_detection(result)
             return result
 
         if not face_result.face_landmarks:
+            result["decision"] = decision_from_legacy_detection(result)
             return result
 
         result["face_detected"] = True
@@ -127,6 +132,7 @@ class DetectorService:
 
         roi, mouth_area, mouth_open = self._extract_mouth_roi(landmarks, frame, h, w)
         if roi is None or roi.size == 0:
+            result["decision"] = decision_from_legacy_detection(result)
             return result
 
         result["debug_roi"] = roi
@@ -150,9 +156,11 @@ class DetectorService:
                 self._grace_frames_remaining = GRACE_PERIOD_FRAMES
                 self._score_filter.reset()
                 _log.info(f"[Detektor] Kalibrierung abgeschlossen, Grace-Period: {GRACE_PERIOD_FRAMES} Frames")
+            result["decision"] = decision_from_legacy_detection(result)
             return result
 
         if not result["calibrated"]:
+            result["decision"] = decision_from_legacy_detection(result)
             return result
 
         # Grace-Period: nach Kalibrierung kurz keine Erkennung
@@ -160,6 +168,7 @@ class DetectorService:
             self._grace_frames_remaining -= 1
             if self._grace_frames_remaining % 10 == 0:
                 _log.info(f"[Detektor] Grace-Period: noch {self._grace_frames_remaining} Frames")
+            result["decision"] = decision_from_legacy_detection(result)
             return result
 
         # Fix 3: Bei geschlossenem Mund HSV-Detektor ueberspringen
@@ -170,6 +179,7 @@ class DetectorService:
             # Fix 4: Nur alle 30 Frames loggen bei geschlossenem Mund
             if self._frame_count % 30 == 0:
                 _log.info(f"[Detektor] ZU score_reset")
+            result["decision"] = decision_from_legacy_detection(result)
             return result
 
         # HSV auf dem fokussierten Lippenspalt-ROI
@@ -213,6 +223,7 @@ class DetectorService:
                 self._last_roi_save = now
                 self._save_roi(roi, gap_ratio)
 
+        result["decision"] = decision_from_legacy_detection(result)
         return result
 
     def enable_roi_saving(self, save_dir: str):

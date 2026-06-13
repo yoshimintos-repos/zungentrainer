@@ -17,6 +17,7 @@ from services.feedback_controller import FeedbackController, FeedbackMode
 from services.session_service import SessionService, SessionState
 from utils.camera_paintable import CameraPaintable
 from models.user_data import SessionRecord
+from detection.decision import DetectionState
 from detection.calibration import CalibrationState
 
 
@@ -265,9 +266,14 @@ class TrainingPage(Gtk.Box):
                         self._window.profile.calibration = ranges
                         self._window.save_profile()
             else:
+                decision = detection["decision"]
+                tongue_out = (
+                    decision is not None
+                    and decision.state == DetectionState.TONGUE_OUT
+                )
                 # Normale Erkennung: nur wenn Session laeuft
                 if self._session.state != SessionState.IDLE:
-                    self._session.update(detection["tongue_out"])
+                    self._session.update(tongue_out)
 
                 if not self._background_mode:
                     if self._session.state == SessionState.RUNNING:
