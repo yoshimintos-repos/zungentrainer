@@ -40,7 +40,11 @@ class TrainingPage(Gtk.Box):
         )
         self._sound.volume = profile.settings.get("volume", 0.5)
         self._mpris = MprisService()
-        self._feedback = FeedbackController(self._sound, self._mpris)
+        self._feedback = FeedbackController(
+            self._sound,
+            self._mpris,
+            pause_media=profile.settings.get("pause_media", True),
+        )
         self._session = SessionService()
         self._paintable = CameraPaintable()
 
@@ -395,3 +399,4 @@ class TrainingPage(Gtk.Box):
         self._camera.camera_index = profile.settings.get("camera_index", 0)
         self._sound.volume = profile.settings.get("volume", 0.5)
         self._sound.frequency = profile.settings.get("beep_frequency", 800)
+        self._feedback.pause_media = profile.settings.get("pause_media", True)

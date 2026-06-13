@@ -28,6 +28,7 @@ def test_settings_defaults():
     p = UserProfile()
     assert p.settings["camera_index"] == 0
     assert p.settings["volume"] == 0.5
+    assert p.settings["pause_media"] is True
 
 def test_difficulty_params_roundtrip():
     p = UserProfile()

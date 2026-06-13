@@ -69,6 +69,19 @@ def test_alarm_starts_loop_when_no_media_is_playing():
     assert feedback.mode == FeedbackMode.IDLE
 
 
+def test_alarm_starts_loop_when_media_pause_is_disabled():
+    sound = FakeSound()
+    mpris = FakeMpris(paused_players=["org.mpris.MediaPlayer2.test"])
+    feedback = FeedbackController(sound, mpris, pause_media=False)
+
+    mode = feedback.start_alarm()
+
+    assert mode == FeedbackMode.NO_MEDIA_AUDIO
+    assert sound.beeps == 1
+    assert sound.loop_started == 1
+    assert mpris.pause_calls == 0
+
+
 def test_alarm_is_not_restarted_while_active():
     sound = FakeSound()
     mpris = FakeMpris(paused_players=[])

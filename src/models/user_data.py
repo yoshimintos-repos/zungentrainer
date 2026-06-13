@@ -33,6 +33,7 @@ class UserProfile:
     milestones: list = field(default_factory=list)
     settings: dict = field(default_factory=lambda: {
         "camera_index": 0, "volume": 0.5, "beep_frequency": 800,
+        "pause_media": True,
     })
     difficulty_params: dict = field(default_factory=lambda: {
         "reaction_time": 3.0, "resume_delay": 0.0, "sensitivity": 1.0, "cooldown": 5.0,

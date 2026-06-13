@@ -1,43 +1,34 @@
-"""Einstellungs-Seite mit AdwPreferencesPage."""
+"""Reduzierte Einstellungen fuer die v3-Ueberwachung."""
+
 import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Gtk, Adw
 
-# AdwButtonRow ist seit Libadwaita 1.6 verfuegbar.
-_HAS_BUTTON_ROW = hasattr(Adw, "ButtonRow")
 
-
-def _make_button_row(title: str, start_icon: str | None = None,
-                     end_icon: str | None = None) -> tuple:
-    """Erstellt eine klickbare Zeile.
-
-    Gibt (row, connect_target) zurueck. connect_target ist das Objekt,
-    dessen Signal "activated" verbunden werden soll.
-    """
-    if _HAS_BUTTON_ROW:
+def _make_button_row(title: str, start_icon: str | None = None) -> tuple:
+    """Erstellt eine klickbare Zeile mit Libadwaita-Fallback."""
+    if hasattr(Adw, "ButtonRow"):
         row = Adw.ButtonRow(title=title)
         if start_icon:
             row.set_start_icon_name(start_icon)
-        if end_icon:
-            row.set_end_icon_name(end_icon)
         return row, row
+
+    row = Adw.ActionRow(title=title)
+    btn = Gtk.Button()
+    if start_icon:
+        btn.set_icon_name(start_icon)
     else:
-        row = Adw.ActionRow(title=title)
-        btn = Gtk.Button()
-        if start_icon:
-            btn.set_icon_name(start_icon)
-        else:
-            btn.set_label(title)
-        btn.set_valign(Gtk.Align.CENTER)
-        btn.add_css_class("flat")
-        row.add_suffix(btn)
-        row.set_activatable_widget(btn)
-        return row, btn
+        btn.set_label(title)
+    btn.set_valign(Gtk.Align.CENTER)
+    btn.add_css_class("flat")
+    row.add_suffix(btn)
+    row.set_activatable_widget(btn)
+    return row, btn
 
 
 class SettingsPage(Adw.PreferencesPage):
-    """Einstellungen fuer Kamera, Ton und Name."""
+    """Nur die wichtigsten Einstellungen fuer den Alltag."""
 
     def __init__(self, main_window):
         super().__init__()
@@ -47,20 +38,18 @@ class SettingsPage(Adw.PreferencesPage):
     def _build_ui(self):
         profile = self._window.profile
 
-        # --- Kamera ---
         camera_group = Adw.PreferencesGroup(title="Kamera")
         self.add(camera_group)
 
         camera_row = Adw.SpinRow.new_with_range(0, 10, 1)
-        camera_row.set_title("Kamera-Index")
+        camera_row.set_title("Kamera")
         camera_row.set_subtitle("0 = Standard-Webcam")
         camera_row.set_value(profile.settings.get("camera_index", 0))
         camera_row.connect("notify::value", self._on_camera_changed)
         camera_group.add(camera_row)
 
-        # --- Ton ---
-        sound_group = Adw.PreferencesGroup(title="Ton")
-        self.add(sound_group)
+        feedback_group = Adw.PreferencesGroup(title="Feedback")
+        self.add(feedback_group)
 
         volume_row = Adw.ActionRow(title="Lautstaerke")
         self._volume_scale = Gtk.Scale.new_with_range(
@@ -71,58 +60,24 @@ class SettingsPage(Adw.PreferencesPage):
         self._volume_scale.set_valign(Gtk.Align.CENTER)
         self._volume_scale.connect("value-changed", self._on_volume_changed)
         volume_row.add_suffix(self._volume_scale)
-        sound_group.add(volume_row)
+        feedback_group.add(volume_row)
 
-        # --- Profil ---
-        profile_group = Adw.PreferencesGroup(title="Profil")
-        self.add(profile_group)
+        self._pause_media_row = Adw.SwitchRow(title="Medien pausieren")
+        self._pause_media_row.set_subtitle(
+            "Laufende Filme, Musik oder Podcasts bei erkannter Zunge pausieren"
+        )
+        self._pause_media_row.set_active(profile.settings.get("pause_media", True))
+        self._pause_media_row.connect("notify::active", self._on_pause_media_changed)
+        feedback_group.add(self._pause_media_row)
 
-        name_row = Adw.EntryRow(title="Name")
-        name_row.set_text(profile.name)
-        name_row.connect("changed", self._on_name_changed)
-        profile_group.add(name_row)
-
-        # --- Erkennung / Kalibrierung ---
-        cal_group = Adw.PreferencesGroup(title="Erkennung")
-        self.add(cal_group)
+        detection_group = Adw.PreferencesGroup(title="Erkennung")
+        self.add(detection_group)
 
         recal_row, recal_target = _make_button_row(
             "Neu kalibrieren", start_icon="view-refresh-symbolic"
         )
         recal_target.connect("activated", self._on_recalibrate)
-        cal_group.add(recal_row)
-
-        # --- Eltern-Bereich (Polkit-geschuetzt) ---
-        parent_group = Adw.PreferencesGroup(title="Eltern-Bereich")
-        parent_group.set_description(
-            "Trainingsplan, Erinnerungen und Schwierigkeit (Passwort erforderlich)"
-        )
-        self.add(parent_group)
-
-        parent_row, parent_target = _make_button_row(
-            "Eltern-Bereich oeffnen",
-            start_icon="system-lock-screen-symbolic",
-            end_icon="go-next-symbolic" if _HAS_BUTTON_ROW else None,
-        )
-        parent_target.connect("activated", self._on_parent_area)
-        parent_group.add(parent_row)
-
-        # --- Daten zuruecksetzen ---
-        reset_group = Adw.PreferencesGroup()
-        self.add(reset_group)
-
-        reset_row, reset_target = _make_button_row("Fortschritt zuruecksetzen")
-        if _HAS_BUTTON_ROW:
-            reset_row.add_css_class("destructive-action")
-        else:
-            # Beim ActionRow-Fallback: Klasse auf den Button, nicht die Row
-            for child in [reset_row.get_first_child()]:
-                pass  # ActionRow hat activatable_widget
-            reset_target.add_css_class("destructive-action")
-        reset_target.connect("activated", self._on_reset)
-        reset_group.add(reset_row)
-
-    # --- Signal-Handler ---
+        detection_group.add(recal_row)
 
     def _on_camera_changed(self, row, _param):
         self._window.profile.settings["camera_index"] = int(row.get_value())
@@ -134,71 +89,15 @@ class SettingsPage(Adw.PreferencesPage):
         self._window.save_profile()
         self._window.training_page.update_settings()
 
-    def _on_name_changed(self, row):
-        self._window.profile.name = row.get_text()
+    def _on_pause_media_changed(self, row, _param):
+        self._window.profile.settings["pause_media"] = row.get_active()
         self._window.save_profile()
+        self._window.training_page.update_settings()
 
     def _on_recalibrate(self, *args):
         self._window.profile.calibration = {}
         self._window.save_profile()
         self._window.show_toast("Kalibrierung zurueckgesetzt")
-
-    def _on_parent_area(self, *args):
-        """Oeffnet Eltern-Bereich nach Polkit-Authentifizierung."""
-        from services.polkit_service import PolkitService
-        polkit = PolkitService()
-        polkit.check_authorization(self._on_polkit_result)
-
-    def _on_polkit_result(self, authorized):
-        from gi.repository import GLib
-        if authorized:
-            GLib.idle_add(self._show_parent_area)
-        else:
-            GLib.idle_add(self._show_auth_failed)
-
-    def _show_parent_area(self):
-        from pages.parent_settings_page import ParentSettingsPage
-        parent_page = ParentSettingsPage(self._window)
-
-        dialog = Adw.Dialog()
-        dialog.set_title("Eltern-Bereich")
-        dialog.set_content_width(500)
-        dialog.set_content_height(600)
-
-        toolbar = Adw.ToolbarView()
-        header = Adw.HeaderBar()
-        toolbar.add_top_bar(header)
-        toolbar.set_content(parent_page)
-        dialog.set_child(toolbar)
-
-        dialog.present(self._window)
-
-    def _show_auth_failed(self):
-        self._window.show_toast("Zugang abgebrochen")
-
-    def _on_reset(self, *args):
-        dialog = Adw.AlertDialog()
-        dialog.set_heading("Fortschritt zuruecksetzen?")
-        dialog.set_body(
-            "Alle Trainingsdaten und Meilensteine werden geloescht. "
-            "Das kann nicht rueckgaengig gemacht werden!"
-        )
-        dialog.add_response("cancel", "Abbrechen")
-        dialog.add_response("reset", "Zuruecksetzen")
-        dialog.set_response_appearance("reset", Adw.ResponseAppearance.DESTRUCTIVE)
-        dialog.set_default_response("cancel")
-        dialog.set_close_response("cancel")
-        dialog.choose(self._window, None, self._on_reset_response)
-
-    def _on_reset_response(self, dialog, result):
-        response = dialog.choose_finish(result)
-        if response == "reset":
-            from models.user_data import UserProfile
-            settings = self._window.profile.settings.copy()
-            self._window.profile = UserProfile()
-            self._window.profile.settings = settings
-            self._window.save_profile()
-            self._window.refresh_pages()
 
     def refresh(self):
         pass

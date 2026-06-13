@@ -17,9 +17,10 @@ class FeedbackController:
     abgespielt, bis die Zunge wieder drin ist.
     """
 
-    def __init__(self, sound_service, mpris_service):
+    def __init__(self, sound_service, mpris_service, pause_media: bool = True):
         self._sound = sound_service
         self._mpris = mpris_service
+        self.pause_media = pause_media
         self.mode = FeedbackMode.IDLE
 
     def start_alarm(self) -> FeedbackMode:
@@ -28,7 +29,7 @@ class FeedbackController:
             return self.mode
 
         self._sound.beep()
-        paused_players = self._mpris.pause_all()
+        paused_players = self._mpris.pause_all() if self.pause_media else []
         if paused_players:
             self.mode = FeedbackMode.MEDIA_PAUSED
         else:
